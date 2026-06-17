@@ -1,27 +1,51 @@
-use crate::core::Currency;
-use crate::define_struct;
+use crate::user::types::Currency;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, Div, Mul, Rem, Sub};
+use std::sync::Arc;
 
-define_struct!(
-Amount has {
-    crate::core | currency: Currency,
-} with {
-    value: i64,
-});
+#[derive(Clone, Debug)]
+pub struct Amount {
+    pub value: i64,
+    pub currency: Arc<Currency>,
+}
+
+impl Amount {
+    pub fn new(value: i64, currency: Arc<Currency>) -> Self {
+        Self { value, currency }
+    }
+
+    pub fn flow(&self) -> &str {
+        if self.value < 0 { "Out" } else { "In" }
+    }
+
+    pub fn reverse(&self) -> Self {
+        let value = -self.value;
+        Amount::new(value, self.currency.clone())
+    }
+}
 
 impl Display for Amount {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        let sign = if self.value < 0 { "Out" } else { "In" };
         let val_abs = self.value.abs();
+
+        if f.alternate() {
+            return write!(
+                f,
+                "{} {}.{}",
+                self.currency,
+                self.value / 100,
+                val_abs % 100,
+            );
+        }
+
         write!(
             f,
             "{} {}.{} | {}",
             self.currency,
             val_abs / 100,
             val_abs % 100,
-            sign,
+            self.flow(),
         )
     }
 }
@@ -50,7 +74,7 @@ impl Add for Amount {
             return self;
         }
 
-        Self::new(self.currency.clone(), self.value + other.value).expect("Failed to add amount")
+        Self::new(self.value + other.value, self.currency.clone())
     }
 }
 
@@ -62,8 +86,7 @@ impl Sub for Amount {
             return self;
         }
 
-        Self::new(self.currency.clone(), self.value - other.value)
-            .expect("Failed to subtract amount")
+        Self::new(self.value - other.value, self.currency.clone())
     }
 }
 
@@ -74,7 +97,7 @@ macro_rules! impl_mul_div_rem {
                 type Output = Self;
 
                 fn mul(self, rhs: $type) -> Amount {
-                    Self::new(self.currency.clone(), self.value*(rhs as i64) ).expect("Failed to multiple amount")
+                    Self::new(self.value*(rhs as i64),self.currency.clone())
                 }
             }
 
@@ -82,7 +105,7 @@ macro_rules! impl_mul_div_rem {
                 type Output = Self;
 
                 fn div(self, rhs: $type) -> Amount {
-                    Self::new(self.currency.clone(), self.value/(rhs as i64) ).expect("Failed to divide amount")
+                    Self::new(self.value/(rhs as i64) ,self.currency.clone())
                 }
             }
 
@@ -90,7 +113,7 @@ macro_rules! impl_mul_div_rem {
                 type Output = Self;
 
                 fn rem(self, rhs: $type) -> Amount {
-                    Self::new(self.currency.clone(), self.value%(rhs as i64) ).expect("Failed to modulo amount")
+                    Self::new(self.value%(rhs as i64), self.currency.clone())
                 }
             }
         )+

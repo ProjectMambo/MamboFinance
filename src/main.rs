@@ -1,43 +1,40 @@
-// enum Flow {
-//     In,
-//     Out,
-// }
-
-// struct USD;
-// struct SGD;
-
-mod core;
 mod user;
-use core::*;
 use user::*;
 
-use crate::user::CategoryVariant::*;
-
 fn main() {
-    let test_currency: Currency = Currency::new(String::from("SGD")).unwrap();
-    let test_amount: Amount = Amount::new(test_currency, -67).unwrap();
-    let test_date: Date = Date::new(2, 5, 2026).unwrap();
+    print! {"\n\n\n\n\n\n\n\n--------------------------------------------------\n\n"};
 
-    let test_group: Group =
-        Group::new(Label::new(21, String::from("testGroup"), None).unwrap()).unwrap();
-    let test_category: Category = Category::new(
-        Label::new(333, String::from("du bist gut genug"), None).unwrap(),
-        Paired,
-    )
-    .unwrap();
-    let test_fund: Fund =
-        Fund::new(Label::new(4444, String::from("du bist gut genug"), None).unwrap()).unwrap();
+    let user = User::new("TEST");
+    user.add_group("du bist gut genug");
+    user.add_group("du bist gut genug");
+    user.add_currency("SGD");
+    user.add_group("gift");
+    user.add_category("surgery");
+    user.add_fund("savings");
+    User::unwrap_result(user.add_transaction(
+        "bbl",
+        Some("baby"),
+        (1000, "SGD"),
+        (1, 1, 2024),
+        "gift",
+        "surgery",
+        "savings",
+    ));
 
-    let t = Transaction::new(
-        Label::new(67i32, String::from("Test"), Some(String::from("testdes"))).unwrap(),
-        test_amount,
-        test_date,
-        test_group,
-        test_category,
-        test_fund,
-        None,
-    )
-    .unwrap();
+    user.add_currency("USD");
+    user.add_group("Invest");
+    user.add_paired_category("convert");
+    user.add_fund("multicurrency");
+    User::unwrap_result(user.add_paired_transaction(
+        "DogeCoinGO!!!",
+        Some("Neta"),
+        (6767, "USD"),
+        (1, 6, 2026),
+        "Invest",
+        "convert",
+        "multicurrency",
+        "multicurrency",
+    ));
 
-    println!("{}", t)
+    print! {"\n--------------------------------------------------\n\n"};
 }

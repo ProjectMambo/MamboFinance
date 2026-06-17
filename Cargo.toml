@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 paste = "1.0"
+thiserror = "2.0.18"
+uuid = { version = "1.23.3", features = ["v4", "fast-rng", "v5"] }
