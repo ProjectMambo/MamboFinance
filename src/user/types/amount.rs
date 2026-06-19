@@ -1,27 +1,29 @@
-use crate::user::types::Currency;
+use crate::user::AMOUNT_LIMIT;
+use crate::user::Currency;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, Div, Mul, Rem, Sub};
-use std::sync::Arc;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Amount {
     pub value: i64,
-    pub currency: Arc<Currency>,
+    pub currency: Currency,
 }
 
 impl Amount {
-    pub fn new(value: i64, currency: Arc<Currency>) -> Self {
+    pub fn new(value: i64, currency: Currency) -> Self {
         Self { value, currency }
     }
 
-    pub fn flow(&self) -> &str {
-        if self.value < 0 { "Out" } else { "In" }
+    pub fn from_row_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Self> {
+        Ok(Amount {
+            value: row.get(offset)?,
+            currency: Currency::from_row_offset(row, offset + 1)?,
+        })
     }
 
-    pub fn reverse(&self) -> Self {
-        let value = -self.value;
-        Amount::new(value, self.currency.clone())
+    pub fn flow(&self) -> &str {
+        if self.value < 0 { "> Out" } else { "< In" }
     }
 }
 
@@ -29,23 +31,14 @@ impl Display for Amount {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         let val_abs = self.value.abs();
 
-        if f.alternate() {
-            return write!(
-                f,
-                "{} {}.{}",
-                self.currency,
-                self.value / 100,
-                val_abs % 100,
-            );
-        }
-
         write!(
             f,
-            "{} {}.{} | {}",
+            "{:#} {:>width$}.{:0<2} {:<5}",
             self.currency,
             val_abs / 100,
             val_abs % 100,
             self.flow(),
+            width = AMOUNT_LIMIT,
         )
     }
 }
@@ -74,7 +67,7 @@ impl Add for Amount {
             return self;
         }
 
-        Self::new(self.value + other.value, self.currency.clone())
+        Self::new(self.value + other.value, self.currency)
     }
 }
 
@@ -86,7 +79,7 @@ impl Sub for Amount {
             return self;
         }
 
-        Self::new(self.value - other.value, self.currency.clone())
+        Self::new(self.value - other.value, self.currency)
     }
 }
 
@@ -97,7 +90,7 @@ macro_rules! impl_mul_div_rem {
                 type Output = Self;
 
                 fn mul(self, rhs: $type) -> Amount {
-                    Self::new(self.value*(rhs as i64),self.currency.clone())
+                    Self::new(self.value*(rhs as i64),self.currency)
                 }
             }
 
@@ -105,7 +98,7 @@ macro_rules! impl_mul_div_rem {
                 type Output = Self;
 
                 fn div(self, rhs: $type) -> Amount {
-                    Self::new(self.value/(rhs as i64) ,self.currency.clone())
+                    Self::new(self.value/(rhs as i64) ,self.currency)
                 }
             }
 
@@ -113,10 +106,21 @@ macro_rules! impl_mul_div_rem {
                 type Output = Self;
 
                 fn rem(self, rhs: $type) -> Amount {
-                    Self::new(self.value%(rhs as i64), self.currency.clone())
+                    Self::new(self.value%(rhs as i64), self.currency)
                 }
             }
         )+
     };
 }
 impl_mul_div_rem!(i8, i16, i32, i64, u8, u16, u32, u64, usize);
+
+#[derive(Clone, Copy)]
+pub struct RawAmount {
+    pub value: i64,
+}
+
+impl RawAmount {
+    pub fn new(value: i64) -> Self {
+        Self { value }
+    }
+}

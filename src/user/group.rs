@@ -1,33 +1,25 @@
-use crate::user::types::{HasLabel, Label};
+use crate::user::types::Label;
 use std::fmt::{Display, Formatter};
-use std::sync::Arc;
-use uuid::Uuid;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Group {
     pub label: Label,
 }
 
-impl HasLabel for Group {
-    fn id(&self) -> Uuid {
-        self.label.id
-    }
-}
-
 impl Group {
-    pub fn new(name: &str) -> Arc<Self> {
-        let label = Label::new_pooled(name, "GROUP");
-        Arc::new(Self { label })
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Self::from_row_offset(row, 0)
+    }
+
+    pub fn from_row_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Self> {
+        Ok(Group {
+            label: Label::from_row_offset_no_desc(row, offset)?,
+        })
     }
 }
 
 impl Display for Group {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        if f.alternate() {
-            return write!(f, "{:#}", self.label);
-        }
-
-        writeln!(f, "--- Group ---")?;
         write!(f, "{}", self.label)
     }
 }

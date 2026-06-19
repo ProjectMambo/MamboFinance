@@ -1,3 +1,4 @@
+use crate::user::{DESC_LIMIT, NAME_LIMIT};
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
@@ -6,10 +7,6 @@ pub struct Label {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
-}
-
-pub trait HasLabel {
-    fn id(&self) -> Uuid;
 }
 
 impl Label {
@@ -24,37 +21,41 @@ impl Label {
         }
     }
 
-    pub fn new_pooled(name: &str, description: &str) -> Self {
-        //FIXME: change hardcode
-        let namespace = Uuid::parse_str("67c87747-17e2-4bc4-9d58-9a996924b107").unwrap();
-        let namedes = format!("{}-{}", name, description);
+    pub fn from_row_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Self> {
+        Ok(Label {
+            id: row.get(offset)?,
+            name: row.get(offset + 1)?,
+            description: row.get(offset + 2)?,
+        })
+    }
 
-        let id = Uuid::new_v5(&namespace, namedes.as_bytes());
-        Self {
-            id,
-            name: String::from(name),
-            description: Some(String::from(description)),
-        }
+    pub fn from_row_offset_no_desc(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Self> {
+        Ok(Label {
+            id: row.get(offset)?,
+            name: row.get(offset + 1)?,
+            description: None,
+        })
     }
 }
 
 impl Display for Label {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         if f.alternate() {
-            return write!(f, "{}", self.name);
-        }
-
-        if f.sign_plus() {
-            write!(f, "id: {}\nname: {}", self.id, self.name)?;
+            write!(f, "{}", self.name)?;
             return match &self.description {
-                Some(des) => write!(f, "\ndescription: {}", des),
+                Some(des) => write!(f, " | {}", des),
                 None => Ok(()),
             };
         }
 
-        write!(f, "name: {}", self.name)?;
+        let truncated: String = self.name.chars().take(NAME_LIMIT).collect();
+        write!(f, "{:<width$}", truncated, width = NAME_LIMIT)?;
+
         match &self.description {
-            Some(des) => write!(f, "\ndescription: {}", des),
+            Some(des) => {
+                let truncated: String = des.chars().take(NAME_LIMIT).collect();
+                write!(f, " | {:<width$}", truncated, width = DESC_LIMIT)
+            }
             None => Ok(()),
         }
     }

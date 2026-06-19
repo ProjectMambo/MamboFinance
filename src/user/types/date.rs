@@ -6,20 +6,11 @@ const MONTHS_NAME: [&str; 12] = [
     "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
 ];
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Date {
     pub day: u8,
     pub month: u8,
     pub year: u16,
-}
-
-#[derive(Error, Debug)]
-pub enum DateError {
-    #[error("{0} is not a valid month, there's only 12.")]
-    InvalidMonth(u8),
-
-    #[error("There's only {0} days in {1}")]
-    InvalidDay(u8, String),
 }
 
 impl Date {
@@ -44,6 +35,14 @@ impl Date {
         Ok(Self { day, month, year })
     }
 
+    pub fn from_row_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Self> {
+        Ok(Date {
+            day: row.get::<_, i64>(offset)? as u8,
+            month: row.get::<_, i64>(offset + 1)? as u8,
+            year: row.get::<_, i64>(offset + 2)? as u16,
+        })
+    }
+
     pub fn is_leap_year(year: u16) -> bool {
         (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
     }
@@ -51,16 +50,21 @@ impl Date {
 
 impl Display for Date {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        if f.alternate() {
-            return write!(f, "{}-{}-{}", self.day, self.month, self.year);
-        }
-
         write!(
             f,
-            "{}-{}-{}",
+            "{:0>2}-{}-{:0>4}",
             self.day,
             MONTHS_NAME[(self.month - 1) as usize],
             self.year
         )
     }
+}
+
+#[derive(Error, Debug)]
+pub enum DateError {
+    #[error("{0} is not a valid month, there's only 12.")]
+    InvalidMonth(u8),
+
+    #[error("There's only {0} days in {1}")]
+    InvalidDay(u8, String),
 }
