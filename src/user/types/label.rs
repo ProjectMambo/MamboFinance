@@ -16,7 +16,7 @@ impl Label {
 
         Self {
             id,
-            name: String::from(name),
+            name: Label::fmt(name),
             description: des,
         }
     }
@@ -36,6 +36,22 @@ impl Label {
             description: None,
         })
     }
+
+    pub fn fmt(input: &str) -> String {
+        let delimiters = " _-";
+        input
+            .split(|c| delimiters.contains(c))
+            .filter(|s| !s.is_empty())
+            .map(|word| {
+                let mut chars = word.chars();
+                match chars.next() {
+                    None => String::new(),
+                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                }
+            })
+            .collect::<Vec<String>>()
+            .join(" ")
+    }
 }
 
 impl Display for Label {
@@ -46,6 +62,20 @@ impl Display for Label {
                 Some(des) => write!(f, " | {}", des),
                 None => Ok(()),
             };
+        }
+
+        if f.sign_plus() {
+            let truncated: String = self.name.chars().take(NAME_LIMIT).collect();
+            write!(f, "{:<width$}", truncated, width = NAME_LIMIT)?;
+
+            let des = match &self.description {
+                Some(des) => des,
+                None => "",
+            };
+
+            let truncated: String = des.chars().take(DESC_LIMIT).collect();
+
+            return write!(f, " | {:<width$}", truncated, width = DESC_LIMIT);
         }
 
         let truncated: String = self.name.chars().take(NAME_LIMIT).collect();
@@ -59,4 +89,10 @@ impl Display for Label {
             None => Ok(()),
         }
     }
+}
+
+pub trait HasLabel {
+    fn name(&self) -> &str;
+    fn id(&self) -> Uuid;
+    fn table() -> &'static str;
 }

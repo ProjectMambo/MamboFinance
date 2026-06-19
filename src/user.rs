@@ -2,6 +2,7 @@ mod category;
 mod currency;
 mod fund;
 mod group;
+mod query;
 mod transaction;
 mod types;
 
@@ -9,6 +10,7 @@ use category::*;
 use currency::*;
 use fund::*;
 use group::*;
+use query::*;
 use transaction::*;
 use types::*;
 
@@ -20,7 +22,7 @@ use uuid::Uuid;
 
 use crate::user::InputError::WrongVariant;
 
-pub const NAME_LIMIT: usize = 25;
+pub const NAME_LIMIT: usize = 20;
 pub const DESC_LIMIT: usize = 25;
 pub const AMOUNT_LIMIT: usize = 10;
 pub const VARIANT_LIMIT: usize = 8;
@@ -32,12 +34,23 @@ pub struct User {
 }
 
 impl User {
+    #[allow(dead_code)]
     pub fn new(name: &str) -> Result<Self, UserError> {
-        let folder_name = "storage";
-        fs::create_dir_all(folder_name)
-            .map_err(|e| UserError::Input(InputError::InvalidDir(format!("{}", e))))?;
-        let db_path = format!("{}/{}.db", folder_name, name);
-        let conn = Connection::open(&db_path).map_err(UserError::SQL)?;
+        Self::new_at_path(&format!("storage/{}.db", name), name)
+    }
+
+    #[allow(dead_code)]
+    pub fn new_in_memory(name: &str) -> Result<Self, UserError> {
+        Self::new_at_path(":memory:", name)
+    }
+
+    fn new_at_path(path: &str, name: &str) -> Result<Self, UserError> {
+        if path != ":memory:" {
+            fs::create_dir_all("storage")
+                .map_err(|e| UserError::Input(InputError::InvalidDir(format!("{}", e))))?;
+        }
+
+        let conn = Connection::open(path).map_err(UserError::SQL)?;
 
         conn.execute("PRAGMA foreign_keys = ON;", ())
             .map_err(UserError::SQL)?;
@@ -51,7 +64,7 @@ impl User {
             currency_id BLOB REFERENCES currencies(id),
             day INTEGER,
             month INTEGER,
-            year INTEGER, 
+            year INTEGER,
             group_id BLOB REFERENCES groups(id),
             category_id BLOB REFERENCES categories(id),
             fund_id BLOB REFERENCES funds(id),
@@ -185,7 +198,7 @@ impl User {
 
     pub fn add_group(&self, name: &str) -> Result<&Self, UserError> {
         let label = Label::new(name, None);
-        self.add_unique_to_table(name, &TableTarget::GROUP, &label, |conn, label| {
+        self.add_unique_to_table::<Group>(name, &label, |conn, label| {
             conn.execute(
                 "INSERT INTO groups (id, name) VALUES (?1, ?2)",
                 rusqlite::params![label.id, label.name],
@@ -197,7 +210,7 @@ impl User {
 
     pub fn add_category(&self, name: &str) -> Result<&Self, UserError> {
         let label = Label::new(name, None);
-        self.add_unique_to_table(name, &TableTarget::CATEGORY, &label, |conn, label| {
+        self.add_unique_to_table::<Currency>(name, &label, |conn, label| {
             conn.execute(
                 "INSERT INTO categories (id, name, variant) VALUES (?1, ?2, ?3)",
                 rusqlite::params![label.id, label.name, 0],
@@ -208,7 +221,7 @@ impl User {
     }
     pub fn add_paired_category(&self, name: &str) -> Result<&Self, UserError> {
         let label = Label::new(name, None);
-        self.add_unique_to_table(name, &TableTarget::CATEGORY, &label, |conn, label| {
+        self.add_unique_to_table::<Category>(name, &label, |conn, label| {
             conn.execute(
                 "INSERT INTO categories (id, name, variant) VALUES (?1, ?2, ?3)",
                 rusqlite::params![label.id, label.name, 1],
@@ -220,7 +233,7 @@ impl User {
 
     pub fn add_fund(&self, name: &str) -> Result<&Self, UserError> {
         let label = Label::new(name, None);
-        self.add_unique_to_table(name, &TableTarget::FUND, &label, |conn, label| {
+        self.add_unique_to_table::<Fund>(name, &label, |conn, label| {
             conn.execute(
                 "INSERT INTO funds (id, name) VALUES (?1, ?2)",
                 rusqlite::params![label.id, label.name],
@@ -232,7 +245,7 @@ impl User {
 
     pub fn add_currency(&self, name: &str) -> Result<&Self, UserError> {
         let label = Label::new(name, None);
-        self.add_unique_to_table(name, &TableTarget::CURRENCY, &label, |conn, label| {
+        self.add_unique_to_table::<Currency>(name, &label, |conn, label| {
             conn.execute(
                 "INSERT INTO currencies (id, name) VALUES (?1, ?2)",
                 rusqlite::params![label.id, label.name],
@@ -242,14 +255,13 @@ impl User {
         Ok(self)
     }
 
-    fn add_unique_to_table(
+    fn add_unique_to_table<T: HasLabel>(
         &self,
         name: &str,
-        table: &TableTarget,
         label: &Label,
         insert: impl FnOnce(&rusqlite::Connection, &Label) -> rusqlite::Result<()>,
     ) -> Result<(), UserError> {
-        let existing = self.get_from_table(name, table);
+        let existing = self.get_from_table::<T>(name);
         match existing {
             Ok(_) => Ok(()),
             Err(UserError::SQL(rusqlite::Error::QueryReturnedNoRows)) => {
@@ -293,25 +305,25 @@ impl User {
     }
 
     fn get_group(&self, name: &str) -> Result<Uuid, UserError> {
-        self.get_from_table(name, &TableTarget::GROUP)
+        self.get_from_table::<Group>(name)
     }
 
     fn get_category(&self, name: &str) -> Result<Uuid, UserError> {
-        self.get_from_table(name, &TableTarget::CATEGORY)
+        self.get_from_table::<Category>(name)
     }
 
     fn get_fund(&self, name: &str) -> Result<Uuid, UserError> {
-        self.get_from_table(name, &TableTarget::FUND)
+        self.get_from_table::<Fund>(name)
     }
 
     fn get_currency(&self, name: &str) -> Result<Uuid, UserError> {
-        self.get_from_table(name, &TableTarget::CURRENCY)
+        self.get_from_table::<Currency>(name)
     }
 
-    fn get_from_table(&self, name: &str, table: &TableTarget) -> Result<Uuid, UserError> {
-        let query = format!("SELECT id FROM {} WHERE name = ?1", table.name());
+    fn get_from_table<T: HasLabel>(&self, name: &str) -> Result<Uuid, UserError> {
+        let query = format!("SELECT id FROM {} WHERE name = ?1", T::table());
         self.conn
-            .query_row(&query, [name], |row| row.get(0))
+            .query_row(&query, [Label::fmt(name)], |row| row.get(0))
             .map_err(UserError::SQL)
     }
 }
@@ -337,27 +349,26 @@ impl User {
     }
 
     fn ls_group(&self) -> Result<Vec<Group>, UserError> {
-        self.ls_table(&TableTarget::GROUP, Group::from_row)
+        self.ls_table(Group::from_row)
     }
 
     fn ls_category(&self) -> Result<Vec<Category>, UserError> {
-        self.ls_table(&TableTarget::CATEGORY, Category::from_row)
+        self.ls_table(Category::from_row)
     }
 
     fn ls_fund(&self) -> Result<Vec<Fund>, UserError> {
-        self.ls_table(&TableTarget::FUND, Fund::from_row)
+        self.ls_table(Fund::from_row)
     }
 
     fn ls_currency(&self) -> Result<Vec<Currency>, UserError> {
-        self.ls_table(&TableTarget::CURRENCY, Currency::from_row)
+        self.ls_table(Currency::from_row)
     }
 
-    fn ls_table<T>(
+    fn ls_table<T: HasLabel>(
         &self,
-        table: &TableTarget,
         from_row: impl Fn(&rusqlite::Row) -> rusqlite::Result<T>,
     ) -> Result<Vec<T>, UserError> {
-        let query = format!("SELECT * FROM {}", table.name());
+        let query = format!("SELECT * FROM {}", T::table());
         let mut stmt = self.conn.prepare(&query).map_err(UserError::SQL)?;
         let rows = stmt.query_map([], from_row).map_err(UserError::SQL)?;
         rows.collect::<rusqlite::Result<Vec<T>>>()
@@ -377,74 +388,53 @@ impl User {
 }
 
 impl User {
-    pub fn print_transaction(&self) -> Result<&Self, UserError> {
-        let rows = self.ls_transaction()?;
-        self.print_table(
-            "TRANSACTION",
-            &[
-                "NAME",
-                "DESCRIPTION",
-                "AMOUNT",
-                "DATE",
-                "GROUP",
-                "CATEGORY",
-                "FUND",
-            ],
-            &[
-                NAME_LIMIT,
-                DESC_LIMIT,
-                AMOUNT_LIMIT + 13,
-                11,
-                NAME_LIMIT,
-                NAME_LIMIT,
-                NAME_LIMIT,
-            ],
-            &rows,
-        );
-        Ok(self)
+    pub fn transactions(&self) -> Result<Query<'_, Transaction>, UserError> {
+        Ok(Query {
+            user: self,
+            rows: self.ls_transaction()?,
+        })
     }
-
-    pub fn print_group(&self) -> Result<&Self, UserError> {
-        let rows = self.ls_group()?;
-        self.print_table("GROUP", &["NAME"], &[NAME_LIMIT], &rows);
-        Ok(self)
+    pub fn groups(&self) -> Result<Query<'_, Group>, UserError> {
+        Ok(Query {
+            user: self,
+            rows: self.ls_group()?,
+        })
     }
-
-    pub fn print_category(&self) -> Result<&Self, UserError> {
-        let rows = self.ls_category()?;
-        self.print_table(
-            "CATEGORY",
-            &["NAME", "VARIANT"],
-            &[NAME_LIMIT, VARIANT_LIMIT],
-            &rows,
-        );
-        Ok(self)
+    pub fn categories(&self) -> Result<Query<'_, Category>, UserError> {
+        Ok(Query {
+            user: self,
+            rows: self.ls_category()?,
+        })
     }
-
-    pub fn print_fund(&self) -> Result<&Self, UserError> {
-        let rows = self.ls_fund()?;
-        self.print_table("FUND", &["NAME"], &[NAME_LIMIT], &rows);
-        Ok(self)
+    pub fn funds(&self) -> Result<Query<'_, Fund>, UserError> {
+        Ok(Query {
+            user: self,
+            rows: self.ls_fund()?,
+        })
     }
-
-    pub fn print_currency(&self) -> Result<&Self, UserError> {
-        let rows = self.ls_currency()?;
-        self.print_table("CURRENCY", &["NAME"], &[NAME_LIMIT], &rows);
-        Ok(self)
+    pub fn currencies(&self) -> Result<Query<'_, Currency>, UserError> {
+        Ok(Query {
+            user: self,
+            rows: self.ls_currency()?,
+        })
     }
 
     fn print_table<T: Display>(&self, title: &str, headers: &[&str], widths: &[usize], rows: &[T]) {
-        let sep: String = widths
-            .iter()
-            .map(|w| format!("+{}", "-".repeat(w + 2)))
-            .collect::<String>()
+        let no_width = rows.len().to_string().len().max(2); // at least 2 for "NO"
+
+        let sep: String = format!("+{}", "-".repeat(no_width + 2))
+            + &widths
+                .iter()
+                .map(|w| format!("+{}", "-".repeat(w + 2)))
+                .collect::<String>()
             + "+";
 
-        let header: String = headers
-            .iter()
-            .zip(widths.iter())
-            .map(|(h, w)| format!("| {:<w$} ", h))
-            .collect::<String>()
+        let header: String = format!("| {:<no_width$} ", "NO")
+            + &headers
+                .iter()
+                .zip(widths.iter())
+                .map(|(h, w)| format!("| {:<w$} ", h))
+                .collect::<String>()
             + "|";
 
         println!();
@@ -452,8 +442,8 @@ impl User {
         println!("{sep}");
         println!("{header}");
         println!("{sep}");
-        for row in rows {
-            println!("| {row} |");
+        for (i, row) in rows.iter().enumerate() {
+            println!("| {:<no_width$} | {row} |", i + 1);
         }
         println!("{sep}");
         println!();
@@ -464,8 +454,12 @@ impl User {
 pub enum InputError {
     #[error("Failed to create directory: {0}.")]
     InvalidDir(String),
+
     #[error("{0} already exists but as a different category type.")]
     WrongVariant(String),
+
+    #[error("No item at index {0}.")]
+    InvalidIndex(usize),
 }
 
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
@@ -481,22 +475,55 @@ pub enum UserError {
     SQL(#[from] rusqlite::Error),
 }
 
-#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
-#[derive(Debug)]
-enum TableTarget {
-    GROUP,
-    CATEGORY,
-    FUND,
-    CURRENCY,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-impl TableTarget {
-    fn name(&self) -> &'static str {
-        match self {
-            TableTarget::GROUP => "groups",
-            TableTarget::CATEGORY => "categories",
-            TableTarget::FUND => "funds",
-            TableTarget::CURRENCY => "currencies",
-        }
+    fn setup() -> User {
+        User::new_in_memory("test").unwrap()
+    }
+
+    #[test]
+    fn add_group_persists() {
+        let user = setup();
+        user.add_group("Food").unwrap();
+        let groups = user.ls_group().unwrap(); // private, accessible here
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].label.name, "Food");
+    }
+
+    #[test]
+    fn paired_transaction_links_cross_reference() {
+        let user = setup();
+        user.add_currency("MYR")
+            .unwrap()
+            .add_group("Transfer")
+            .unwrap()
+            .add_paired_category("Internal")
+            .unwrap()
+            .add_fund("Checking")
+            .unwrap()
+            .add_fund("Savings")
+            .unwrap();
+        user.add_paired_transaction(
+            "Move",
+            None,
+            (50000, "MYR"),
+            (50000, "MYR"),
+            (1, 6, 2026),
+            "Transfer",
+            "Internal",
+            "Checking",
+            "Savings",
+        )
+        .unwrap();
+
+        let transactions = user.ls_transaction().unwrap();
+        assert_eq!(transactions.len(), 2);
+        let ids: Vec<_> = transactions.iter().map(|t| t.label.id).collect();
+        let links: Vec<_> = transactions.iter().map(|t| t.link.unwrap()).collect();
+        assert!(ids.contains(&links[0]));
+        assert!(ids.contains(&links[1]));
+        assert_ne!(links[0], links[1]);
     }
 }

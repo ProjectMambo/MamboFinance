@@ -1,5 +1,6 @@
-use crate::user::{VARIANT_LIMIT, types::Label};
+use crate::user::{HasLabel, Label, NAME_LIMIT, Printable, VARIANT_LIMIT};
 use std::fmt::{Display, Formatter};
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct Category {
@@ -36,7 +37,33 @@ impl Display for Category {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+impl HasLabel for Category {
+    fn name(&self) -> &str {
+        &self.label.name
+    }
+
+    fn id(&self) -> Uuid {
+        self.label.id
+    }
+
+    fn table() -> &'static str {
+        "categories"
+    }
+}
+
+impl Printable for Category {
+    fn title() -> &'static str {
+        "CATEGORY"
+    }
+    fn headers() -> &'static [&'static str] {
+        &["NAME", "TYPE"]
+    }
+    fn widths() -> &'static [usize] {
+        &[NAME_LIMIT, VARIANT_LIMIT]
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CategoryVariant {
     Single = 0,
     Paired = 1,

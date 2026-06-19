@@ -1,5 +1,6 @@
-use crate::user::types::Label;
+use crate::user::{HasLabel, Label, NAME_LIMIT, Printable};
 use std::fmt::{Display, Formatter};
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct Group {
@@ -21,5 +22,31 @@ impl Group {
 impl Display for Group {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         write!(f, "{}", self.label)
+    }
+}
+
+impl HasLabel for Group {
+    fn name(&self) -> &str {
+        &self.label.name
+    }
+
+    fn id(&self) -> Uuid {
+        self.label.id
+    }
+
+    fn table() -> &'static str {
+        "groups"
+    }
+}
+
+impl Printable for Group {
+    fn title() -> &'static str {
+        "GROUP"
+    }
+    fn headers() -> &'static [&'static str] {
+        &["NAME"]
+    }
+    fn widths() -> &'static [usize] {
+        &[NAME_LIMIT]
     }
 }

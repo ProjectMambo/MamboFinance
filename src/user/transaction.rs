@@ -1,5 +1,7 @@
-use crate::user::types::{Amount, Date, Label};
-use crate::user::{Category, Fund, Group};
+use crate::user::{
+    AMOUNT_LIMIT, Amount, Category, DESC_LIMIT, Date, Fund, Group, HasLabel, Label, NAME_LIMIT,
+    Printable,
+};
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
@@ -33,12 +35,44 @@ impl Display for Transaction {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         write!(
             f,
-            "{} | {} | {} | {} | {:#} | {}",
+            "{:+} | {} | {} | {} | {:#} | {}",
             self.label, self.amount, self.date, self.group, self.category, self.fund
         )
-        // match &self.link {
-        //     Some(pair) => write!(f, " {}", pair),
-        //     None => write!(f, ""),
-        // }
+    }
+}
+
+impl HasLabel for Transaction {
+    fn name(&self) -> &str {
+        &self.label.name
+    }
+
+    fn id(&self) -> Uuid {
+        self.label.id
+    }
+
+    fn table() -> &'static str {
+        "transactions"
+    }
+}
+
+impl Printable for Transaction {
+    fn title() -> &'static str {
+        "TRANSACTION"
+    }
+    fn headers() -> &'static [&'static str] {
+        &[
+            "NAME", "DESC", "AMOUNT", "DATE", "GROUP", "CATEGORY", "FUND",
+        ]
+    }
+    fn widths() -> &'static [usize] {
+        &[
+            NAME_LIMIT,
+            DESC_LIMIT,
+            AMOUNT_LIMIT + 13,
+            11,
+            NAME_LIMIT,
+            NAME_LIMIT,
+            NAME_LIMIT,
+        ]
     }
 }
