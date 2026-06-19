@@ -1,3 +1,4 @@
+// Modules
 mod category;
 mod currency;
 mod fund;
@@ -6,6 +7,7 @@ mod query;
 mod transaction;
 mod types;
 
+// Re-exports/Imports from internal modules
 use category::*;
 use currency::*;
 use fund::*;
@@ -14,6 +16,7 @@ use query::*;
 use transaction::*;
 use types::*;
 
+// External dependencies
 use rusqlite::{Connection, Result};
 use std::fmt::Display;
 use std::fs;
@@ -22,11 +25,13 @@ use uuid::Uuid;
 
 use crate::user::InputError::WrongVariant;
 
+/// Maximum character length limits for string inputs.
 pub const NAME_LIMIT: usize = 20;
 pub const DESC_LIMIT: usize = 25;
 pub const AMOUNT_LIMIT: usize = 10;
 pub const VARIANT_LIMIT: usize = 8;
 
+/// Represents a user session tied to a specific SQLite database connection.
 #[allow(dead_code)]
 pub struct User {
     label: Label,
@@ -34,16 +39,27 @@ pub struct User {
 }
 
 impl User {
+    /// Creates a new `User` instance backed by a persistent file-based SQLite database.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `UserError` if the directory cannot be created or the database initialization fails.
     #[allow(dead_code)]
     pub fn new(name: &str) -> Result<Self, UserError> {
         Self::new_at_path(&format!("storage/{}.db", name), name)
     }
 
+    /// Creates a new `User` instance backed by a temporary in-memory SQLite database.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `UserError` if the database initialization fails.
     #[allow(dead_code)]
     pub fn new_in_memory(name: &str) -> Result<Self, UserError> {
         Self::new_at_path(":memory:", name)
     }
 
+    /// Internal helper to initialize a connection and create the schema at the specified path.
     fn new_at_path(path: &str, name: &str) -> Result<Self, UserError> {
         if path != ":memory:" {
             fs::create_dir_all("storage")
@@ -52,41 +68,43 @@ impl User {
 
         let conn = Connection::open(path).map_err(UserError::SQL)?;
 
+        // Enforce foreign key constraints
         conn.execute("PRAGMA foreign_keys = ON;", ())
             .map_err(UserError::SQL)?;
 
+        // Base schema definition for the accounting engine
         let table_queries = [
             "CREATE TABLE IF NOT EXISTS transactions (
-            id BLOB PRIMARY KEY,
-            name TEXT,
-            description TEXT,
-            amount INTEGER,
-            currency_id BLOB REFERENCES currencies(id),
-            day INTEGER,
-            month INTEGER,
-            year INTEGER,
-            group_id BLOB REFERENCES groups(id),
-            category_id BLOB REFERENCES categories(id),
-            fund_id BLOB REFERENCES funds(id),
-            link_id BLOB REFERENCES transactions(id)
-        );",
+                id BLOB PRIMARY KEY,
+                name TEXT,
+                description TEXT,
+                amount INTEGER,
+                currency_id BLOB REFERENCES currencies(id) ON DELETE CASCADE,
+                day INTEGER,
+                month INTEGER,
+                year INTEGER,
+                group_id BLOB REFERENCES groups(id) ON DELETE CASCADE,
+                category_id BLOB REFERENCES categories(id) ON DELETE CASCADE,
+                fund_id BLOB REFERENCES funds(id) ON DELETE CASCADE,
+                link_id BLOB REFERENCES transactions(id) ON DELETE SET NULL
+            );",
             "CREATE TABLE IF NOT EXISTS groups (
-            id BLOB PRIMARY KEY,
-            name TEXT
-        );",
+                id BLOB PRIMARY KEY,
+                name TEXT
+            );",
             "CREATE TABLE IF NOT EXISTS categories (
-            id BLOB PRIMARY KEY,
-            name TEXT,
-            variant INTEGER NOT NULL CHECK (variant in (0,1))
-        );",
+                id BLOB PRIMARY KEY,
+                name TEXT,
+                variant INTEGER NOT NULL CHECK (variant in (0,1))
+            );",
             "CREATE TABLE IF NOT EXISTS funds (
-            id BLOB PRIMARY KEY,
-            name TEXT
-        );",
+                id BLOB PRIMARY KEY,
+                name TEXT
+            );",
             "CREATE TABLE IF NOT EXISTS currencies (
-            id BLOB PRIMARY KEY,
-            name TEXT
-        );",
+                id BLOB PRIMARY KEY,
+                name TEXT
+            );",
         ];
 
         for sql in &table_queries {
@@ -101,6 +119,11 @@ impl User {
 }
 
 impl User {
+    /// Adds a standalone single-entry transaction to the database.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UserError` if any relation is not found, parameters are invalid, or SQL execution fails.
     #[allow(clippy::too_many_arguments)]
     pub fn add_transaction(
         &self,
@@ -137,6 +160,11 @@ impl User {
         Ok(self)
     }
 
+    /// Adds a double-entry paired transaction (e.g., transfers, currency exchanges) wrapped in a SQL transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UserError` if verification fails or the database transaction fails to execute or commit.
     #[allow(clippy::too_many_arguments)]
     pub fn add_paired_transaction(
         &self,
@@ -167,8 +195,10 @@ impl User {
 
         let tx = self.conn.unchecked_transaction().map_err(UserError::SQL)?;
 
+        // Defer constraints to allow mutually referencing transactions to be inserted
         tx.execute("PRAGMA defer_foreign_keys = ON;", ())?;
 
+        // Insert source ledger entry
         self.add_to_table(&source_label, |conn, label| {
             conn.execute(
                 "INSERT INTO transactions (id, name, description, amount, currency_id, day, month, year, group_id, fund_id, category_id, link_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
@@ -180,6 +210,7 @@ impl User {
             .map(|_| ())
         })?;
 
+        // Insert target ledger entry
         self.add_to_table(&target_label, |conn, label| {
             conn.execute(
                 "INSERT INTO transactions (id, name, description, amount, currency_id, day, month, year, group_id, fund_id, category_id, link_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
@@ -196,6 +227,7 @@ impl User {
         Ok(self)
     }
 
+    /// Registers a new transaction group if it does not already exist.
     pub fn add_group(&self, name: &str) -> Result<&Self, UserError> {
         let label = Label::new(name, None);
         self.add_unique_to_table::<Group>(name, &label, |conn, label| {
@@ -208,6 +240,7 @@ impl User {
         Ok(self)
     }
 
+    /// Registers a new single-variant category if it does not already exist.
     pub fn add_category(&self, name: &str) -> Result<&Self, UserError> {
         let label = Label::new(name, None);
         self.add_unique_to_table::<Currency>(name, &label, |conn, label| {
@@ -219,6 +252,8 @@ impl User {
         })?;
         Ok(self)
     }
+
+    /// Registers a new paired-variant category if it does not already exist.
     pub fn add_paired_category(&self, name: &str) -> Result<&Self, UserError> {
         let label = Label::new(name, None);
         self.add_unique_to_table::<Category>(name, &label, |conn, label| {
@@ -231,6 +266,7 @@ impl User {
         Ok(self)
     }
 
+    /// Registers a new asset fund/account if it does not already exist.
     pub fn add_fund(&self, name: &str) -> Result<&Self, UserError> {
         let label = Label::new(name, None);
         self.add_unique_to_table::<Fund>(name, &label, |conn, label| {
@@ -243,6 +279,7 @@ impl User {
         Ok(self)
     }
 
+    /// Registers a new fiat or cryptocurrency asset if it does not already exist.
     pub fn add_currency(&self, name: &str) -> Result<&Self, UserError> {
         let label = Label::new(name, None);
         self.add_unique_to_table::<Currency>(name, &label, |conn, label| {
@@ -255,6 +292,7 @@ impl User {
         Ok(self)
     }
 
+    /// Helper variant that inserts a record only if the unique name constraint is satisfied.
     fn add_unique_to_table<T: HasLabel>(
         &self,
         name: &str,
@@ -272,6 +310,7 @@ impl User {
         }
     }
 
+    /// Standard closure wrapper executing insertions on the underlying SQLite connection.
     fn add_to_table(
         &self,
         label: &Label,
@@ -282,6 +321,7 @@ impl User {
 }
 
 impl User {
+    /// Asserts that a category matches the expected structural variant (Single vs Paired).
     fn check_category_variant(&self, id: Uuid, variant: CategoryVariant) -> Result<(), UserError> {
         let existing = self
             .conn
@@ -320,6 +360,7 @@ impl User {
         self.get_from_table::<Currency>(name)
     }
 
+    /// Extracts a unique entity UUID based on its string representation and table descriptor.
     fn get_from_table<T: HasLabel>(&self, name: &str) -> Result<Uuid, UserError> {
         let query = format!("SELECT id FROM {} WHERE name = ?1", T::table());
         self.conn
@@ -329,6 +370,7 @@ impl User {
 }
 
 impl User {
+    /// Compiles all elements from the `transactions` table with relational joins.
     fn ls_transaction(&self) -> Result<Vec<Transaction>, UserError> {
         self.ls_query(
             "SELECT
@@ -364,6 +406,7 @@ impl User {
         self.ls_table(Currency::from_row)
     }
 
+    /// Maps whole table records to specific data models implementing `HasLabel`.
     fn ls_table<T: HasLabel>(
         &self,
         from_row: impl Fn(&rusqlite::Row) -> rusqlite::Result<T>,
@@ -375,6 +418,7 @@ impl User {
             .map_err(UserError::SQL)
     }
 
+    /// Queries records using custom parameterized/joined SQL strings.
     fn ls_query<T>(
         &self,
         query: &str,
@@ -419,6 +463,7 @@ impl User {
         })
     }
 
+    /// Renders a structured CLI table to standard output for visual reporting.
     fn print_table<T: Display>(&self, title: &str, headers: &[&str], widths: &[usize], rows: &[T]) {
         let no_width = rows.len().to_string().len().max(2); // at least 2 for "NO"
 
@@ -450,6 +495,7 @@ impl User {
     }
 }
 
+/// Errors related to data processing constraints and index range checks.
 #[derive(Error, Debug)]
 pub enum InputError {
     #[error("Failed to create directory: {0}.")]
@@ -462,6 +508,7 @@ pub enum InputError {
     InvalidIndex(usize),
 }
 
+/// Top-level error enum wrapping specialized subsystem failure states.
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 #[derive(Error, Debug)]
 pub enum UserError {
@@ -479,6 +526,7 @@ pub enum UserError {
 mod tests {
     use super::*;
 
+    /// Constructs an isolated sandbox instance using memory storage for testing routines.
     fn setup() -> User {
         User::new_in_memory("test").unwrap()
     }
@@ -522,6 +570,8 @@ mod tests {
         assert_eq!(transactions.len(), 2);
         let ids: Vec<_> = transactions.iter().map(|t| t.label.id).collect();
         let links: Vec<_> = transactions.iter().map(|t| t.link.unwrap()).collect();
+
+        // Confirm mutual reference constraints match up cleanly across records
         assert!(ids.contains(&links[0]));
         assert!(ids.contains(&links[1]));
         assert_ne!(links[0], links[1]);

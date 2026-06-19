@@ -1,7 +1,9 @@
+// Imports from internal user module
 use crate::user::{DESC_LIMIT, NAME_LIMIT};
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
+/// Provides unique identity, naming, and optional textual descriptions for database entities.
 #[derive(Clone, Debug)]
 pub struct Label {
     pub id: Uuid,
@@ -10,6 +12,7 @@ pub struct Label {
 }
 
 impl Label {
+    /// Constructs a new `Label` instance with a randomly generated UUID and a formatted name.
     pub fn new(name: &str, description: Option<&str>) -> Self {
         let id = Uuid::new_v4();
         let des = description.map(String::from);
@@ -21,6 +24,7 @@ impl Label {
         }
     }
 
+    /// Maps a single SQLite row to a full `Label` instance including descriptions using column offsets.
     pub fn from_row_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Self> {
         Ok(Label {
             id: row.get(offset)?,
@@ -29,6 +33,7 @@ impl Label {
         })
     }
 
+    /// Maps a single SQLite row to a partial `Label` instance, explicitly omitting descriptions.
     pub fn from_row_offset_no_desc(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Self> {
         Ok(Label {
             id: row.get(offset)?,
@@ -37,6 +42,9 @@ impl Label {
         })
     }
 
+    /// Sanitizes and converts delimiter-separated strings into a Title Case format.
+    ///
+    /// e.g., "my_test-string" becomes "My Test String".
     pub fn fmt(input: &str) -> String {
         let delimiters = " _-";
         input
@@ -55,7 +63,9 @@ impl Label {
 }
 
 impl Display for Label {
+    /// Formats the entity label output, processing truncation and layout padding via type modifiers.
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        // Alternate layout format (`{:#}`)
         if f.alternate() {
             write!(f, "{}", self.name)?;
             return match &self.description {
@@ -64,6 +74,7 @@ impl Display for Label {
             };
         }
 
+        // Plus-sign layout format (`{:+}`)
         if f.sign_plus() {
             let truncated: String = self.name.chars().take(NAME_LIMIT).collect();
             write!(f, "{:<width$}", truncated, width = NAME_LIMIT)?;
@@ -78,6 +89,7 @@ impl Display for Label {
             return write!(f, " | {:<width$}", truncated, width = DESC_LIMIT);
         }
 
+        // Standard layout format (`{}`)
         let truncated: String = self.name.chars().take(NAME_LIMIT).collect();
         write!(f, "{:<width$}", truncated, width = NAME_LIMIT)?;
 
@@ -91,6 +103,7 @@ impl Display for Label {
     }
 }
 
+/// Interface indicating an entity can expose a uniform metadata `Label` structure and data origin table.
 pub trait HasLabel {
     fn name(&self) -> &str;
     fn id(&self) -> Uuid;

@@ -1,15 +1,18 @@
+// Imports from internal user module
 use crate::user::{
     Category, Currency, Fund, Group, HasLabel, InputError, Label, Transaction, User, UserError,
 };
 use std::fmt::Display;
 use uuid::Uuid;
 
+/// A builder-like query wrapper for sorting, filtering, displaying, and removing ledger records.
 pub struct Query<'a, T> {
     pub user: &'a User,
     pub rows: Vec<T>,
 }
 
 impl<'a, T: HasLabel> Query<'a, T> {
+    /// Sorts the internal dataset alphabetically by name using lexical sorting order.
     pub fn sort_by_name(mut self) -> Self {
         self.rows.sort_by(|a, b| a.name().cmp(b.name()));
         self
@@ -17,6 +20,7 @@ impl<'a, T: HasLabel> Query<'a, T> {
 }
 
 impl<'a> Query<'a, Category> {
+    /// Sorts categories sequentially by their operational structure type (Single vs Paired).
     pub fn sort_by_type(mut self) -> Self {
         self.rows.sort_by_key(|c| c.variant);
         self
@@ -24,40 +28,47 @@ impl<'a> Query<'a, Category> {
 }
 
 impl<'a> Query<'a, Transaction> {
+    /// Sorts transactions chronologically from oldest to newest.
     pub fn sort_by_date(mut self) -> Self {
         self.rows
             .sort_by_key(|t| (t.date.year, t.date.month, t.date.day));
         self
     }
 
+    /// Sorts transactions in ascending order by their numeric raw value.
     pub fn sort_by_amount(mut self) -> Self {
         self.rows.sort_by_key(|t| t.amount.value);
         self
     }
 
+    /// Sorts transactions alphabetically by the lexical name of their respective asset currencies.
     pub fn sort_by_currency(mut self) -> Self {
         self.rows
             .sort_by(|a, b| a.amount.currency.name().cmp(b.amount.currency.name()));
         self
     }
 
+    /// Filters the internal collection to only contain transactions belonging to the given group.
     pub fn filter_group(mut self, group: &str) -> Self {
         self.rows
             .retain(|t| t.group.label.name == Label::fmt(group));
         self
     }
 
+    /// Filters the internal collection to only contain transactions tied to the given asset fund/account.
     pub fn filter_fund(mut self, fund: &str) -> Self {
         self.rows.retain(|t| t.fund.label.name == Label::fmt(fund));
         self
     }
 
+    /// Filters the internal collection to only contain transactions matching the given category.
     pub fn filter_category(mut self, category: &str) -> Self {
         self.rows
             .retain(|t| t.category.label.name == Label::fmt(category));
         self
     }
 
+    /// Filters the internal collection to only contain transactions using the specified currency asset type.
     pub fn filter_currency(mut self, currency: &str) -> Self {
         self.rows
             .retain(|t| t.amount.currency.label.name == Label::fmt(currency));
@@ -65,6 +76,7 @@ impl<'a> Query<'a, Transaction> {
     }
 }
 
+/// Abstract representation of printable terminal tables providing structural spacing details.
 pub trait Printable {
     fn title() -> &'static str;
     fn headers() -> &'static [&'static str];
@@ -72,6 +84,7 @@ pub trait Printable {
 }
 
 impl<'a, T: Display + Printable> Query<'a, T> {
+    /// Draws the internal dataset as a formatted text block on standard terminal outputs.
     pub fn print(self) -> Self {
         self.user
             .print_table(T::title(), T::headers(), T::widths(), &self.rows);
@@ -80,6 +93,9 @@ impl<'a, T: Display + Printable> Query<'a, T> {
 }
 
 impl<'a, T: HasLabel> Query<'a, T> {
+    /// Base internal helper to drop specific database primary keys and matching memory rows.
+    ///
+    /// Cleans up paired cross-references automatically if a link identifier is provided.
     fn delete_by_id(mut self, id: Uuid, also: Option<Uuid>) -> Result<Self, UserError> {
         match also {
             Some(link) => {
@@ -105,6 +121,7 @@ impl<'a, T: HasLabel> Query<'a, T> {
 }
 
 impl<'a> Query<'a, Group> {
+    /// Removes a group from the database using its visible 1-indexed table position.
     pub fn delete(self, no: usize) -> Result<Self, UserError> {
         let id = self
             .rows
@@ -116,6 +133,7 @@ impl<'a> Query<'a, Group> {
 }
 
 impl<'a> Query<'a, Fund> {
+    /// Removes a fund entry from the database using its visible 1-indexed table position.
     pub fn delete(self, no: usize) -> Result<Self, UserError> {
         let id = self
             .rows
@@ -127,6 +145,7 @@ impl<'a> Query<'a, Fund> {
 }
 
 impl<'a> Query<'a, Category> {
+    /// Removes a category from the database using its visible 1-indexed table position.
     pub fn delete(self, no: usize) -> Result<Self, UserError> {
         let id = self
             .rows
@@ -138,6 +157,7 @@ impl<'a> Query<'a, Category> {
 }
 
 impl<'a> Query<'a, Currency> {
+    /// Removes an asset currency from the database using its visible 1-indexed table position.
     pub fn delete(self, no: usize) -> Result<Self, UserError> {
         let id = self
             .rows
@@ -149,6 +169,7 @@ impl<'a> Query<'a, Currency> {
 }
 
 impl<'a> Query<'a, Transaction> {
+    /// Removes a single transaction or a double-entry pair from the database using its visible table position.
     pub fn delete(self, no: usize) -> Result<Self, UserError> {
         let row = self
             .rows

@@ -3,6 +3,9 @@
 use crate::user::{User, UserError};
 
 pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
+    // =========================================================================
+    // 1. MASTER SEED DATA PROVISIONING
+    // =========================================================================
     user.add_currency("USD")?
         .add_currency("EUR")?
         .add_currency("GBP")?
@@ -35,7 +38,6 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
         .add_paired_category("Internal Transfer")?
         .add_paired_category("Currency Exchange")?;
 
-    // Collections of items for procedural programmatic insertion
     let grocery_items = [
         "Whole Foods Market",
         "Trader Joe's",
@@ -67,7 +69,6 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
         "Train Ticket",
     ];
 
-    // Keep track of current user context as a mutable reference to chain safely
     let mut chained_user = user;
 
     // --- LOOP 1: Simulate 4 Months of Paychecks & Income (12 actions) ---
@@ -76,7 +77,7 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
             .add_transaction(
                 "Bi-Weekly Salary",
                 Some("Tech Corp Base Pay"),
-                (250000, "USD"), // Income (+ve)
+                (250000, "USD"),
                 (1, month, 2026),
                 "Salary & Business Income",
                 "Primary Paycheck",
@@ -85,7 +86,7 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
             .add_transaction(
                 "Bi-Weekly Salary",
                 Some("Tech Corp Base Pay"),
-                (250000, "USD"), // Income (+ve)
+                (250000, "USD"),
                 (15, month, 2026),
                 "Salary & Business Income",
                 "Primary Paycheck",
@@ -94,7 +95,7 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
             .add_transaction(
                 "Side Hustle Payout",
                 Some("Contract Web Dev"),
-                (65000, "USD"), // Income (+ve)
+                (65000, "USD"),
                 (22, month, 2026),
                 "Salary & Business Income",
                 "Freelance Gig",
@@ -108,7 +109,7 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
             .add_transaction(
                 "Monthly Rent",
                 Some("Apartment 4B Lease"),
-                (-145000, "USD"), // Expense (-ve)
+                (-145000, "USD"),
                 (1, month, 2026),
                 "Housing & Utilities",
                 "Rent & Mortgage",
@@ -117,7 +118,7 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
             .add_transaction(
                 "Electric Grid Co.",
                 Some("Utility Bill"),
-                (-11520, "USD"), // Expense (-ve)
+                (-11520, "USD"),
                 (4, month, 2026),
                 "Housing & Utilities",
                 "Electricity Bill",
@@ -126,7 +127,7 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
             .add_transaction(
                 "Planet Fitness",
                 Some("Monthly Membership"),
-                (-2499, "USD"), // Expense (-ve)
+                (-2499, "USD"),
                 (8, month, 2026),
                 "Healthcare",
                 "Gym Membership",
@@ -135,7 +136,7 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
             .add_transaction(
                 "Cross Shield",
                 Some("Health Premium"),
-                (-8900, "USD"), // Expense (-ve)
+                (-8900, "USD"),
                 (10, month, 2026),
                 "Healthcare",
                 "Medical Insurance",
@@ -154,41 +155,37 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
             let transport_name = transport_items[(week * month) as usize % transport_items.len()];
 
             chained_user = chained_user
-                // Weekly Grocery Stock (Food & Dining)
                 .add_transaction(
                     grocery_name,
                     None,
-                    (-(8500 + (week as i64 * 1250)), "USD"), // Expense (-ve)
+                    (-(8500 + (week as i64 * 1250)), "USD"),
                     (3 + day_offset, month, 2026),
                     "Food & Dining",
                     "Groceries",
                     "Main Checking",
                 )?
-                // Commute Fuel / Transit Costs (Transportation)
                 .add_transaction(
                     transport_name,
                     Some("Weekly Commute"),
-                    (-(3500 + (day_offset as i64 * 150)), "USD"), // Expense (-ve)
+                    (-(3500 + (day_offset as i64 * 150)), "USD"),
                     (5 + day_offset, month, 2026),
                     "Transportation",
                     "Gas & Fuel",
                     "Credit Card Balance",
                 )?
-                // Mid-week Social Dining (Leisure)
                 .add_transaction(
                     dining_name,
                     Some("Dinner with colleagues"),
-                    (-(4200 + (week as i64 * 600)), "USD"), // Expense (-ve)
+                    (-(4200 + (week as i64 * 600)), "USD"),
                     (6 + day_offset, month, 2026),
                     "Food & Dining",
                     "Restaurants",
                     "Physical Wallet",
                 )?
-                // Digital Entertainment & Outings
                 .add_transaction(
                     leisure_name,
                     None,
-                    (-(1500 + (week as i64 * 350)), "USD"), // Expense (-ve)
+                    (-(1500 + (week as i64 * 350)), "USD"),
                     (7 + day_offset, month, 2026),
                     "Entertainment & Leisure",
                     "Movies & Streaming",
@@ -200,60 +197,55 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
     // --- LOOP 4: Monthly Financial Adjustments & Inter-Account Shifts (24 actions) ---
     for month in 5..=8 {
         chained_user = chained_user
-            // Automated Savings Contribution
             .add_paired_transaction(
                 "Monthly Savings Sweep",
                 Some("Pay Yourself First Allocation"),
-                (-75000, "USD"), // Source account Out (-ve)
-                (75000, "USD"),  // Target account In (+ve)
+                (-75000, "USD"),
+                (75000, "USD"),
                 (2, month, 2026),
                 "Investments",
                 "Internal Transfer",
                 "Main Checking",
                 "High-Yield Savings",
             )?
-            // Long Term Market Investment DCA
             .add_paired_transaction(
                 "DCA Vanguard ETF",
                 Some("SP500 Index Buy-In"),
-                (-50000, "USD"), // Source account Out (-ve)
-                (50000, "USD"),  // Target account In (+ve)
+                (-50000, "USD"),
+                (50000, "USD"),
                 (16, month, 2026),
                 "Investments",
                 "Internal Transfer",
                 "Main Checking",
                 "Investment Brokerage",
             )?
-            // Cash Withdrawal for Pocket money
             .add_paired_transaction(
                 "ATM Withdrawal",
                 Some("Cash liquidity top-up"),
-                (-20000, "USD"), // Source account Out (-ve)
-                (20000, "USD"),  // Target account In (+ve)
+                (-20000, "USD"),
+                (20000, "USD"),
                 (18, month, 2026),
                 "Housing & Utilities",
                 "Internal Transfer",
                 "Main Checking",
                 "Physical Wallet",
             )?
-            // Credit Card Statement Clearing
             .add_paired_transaction(
                 "Pay Credit Card Statement",
                 Some("Full Statement Balance Settlement"),
-                (-65000, "USD"), // Source account Out (-ve)
-                (65000, "USD"),  // Target account In (+ve)
+                (-65000, "USD"),
+                (65000, "USD"),
                 (28, month, 2026),
                 "Housing & Utilities",
                 "Internal Transfer",
                 "Main Checking",
                 "Credit Card Balance",
             )?
-            // International Travel Cash Exchanges
             .add_paired_transaction(
                 "Holiday FX Order",
                 Some("Converting cash for travel"),
-                (-450000, "MYR"), // Source account Out (-ve)
-                (100000, "JPY"),  // Target account In (+ve)
+                (-450000, "MYR"),
+                (100000, "JPY"),
                 (20, month, 2026),
                 "Entertainment & Leisure",
                 "Currency Exchange",
@@ -263,8 +255,8 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
             .add_paired_transaction(
                 "Euro Cash Prep",
                 Some("Buying European currency reserve"),
-                (-22000, "USD"), // Source account Out (-ve)
-                (20000, "EUR"),  // Target account In (+ve)
+                (-22000, "USD"),
+                (20000, "EUR"),
                 (25, month, 2026),
                 "Entertainment & Leisure",
                 "Currency Exchange",
@@ -273,6 +265,13 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
             )?;
     }
 
+    // =========================================================================
+    // 2. EXTENDED SIMULATION: QUERIES, FILTERS, SORTS & SYSTEM DELETIONS
+    // =========================================================================
+    println!("\n--- STARTING ADVANCED QUERY ANALYSIS AND DATA CLEANUP ---");
+
+    // --- STEP A: Initial Structural Grouping Outputs ---
+    println!("\n[1] Rendering structural settings catalogs sorted...");
     chained_user.groups()?.sort_by_name().print();
     chained_user
         .categories()?
@@ -281,6 +280,9 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
         .print();
     chained_user.funds()?.sort_by_name().print();
     chained_user.currencies()?.sort_by_name().print();
+
+    // --- STEP B: High Volume Multi-Stage Sorting & Isolation Checks ---
+    println!("\n[2] Master Ledger: All transactions ordered by Currency -> Amount -> Name");
     chained_user
         .transactions()?
         .sort_by_name()
@@ -288,5 +290,73 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
         .sort_by_currency()
         .print();
 
+    println!("\n[3] Historical Timeline: All transactions ordered by Date chronologically");
+    chained_user.transactions()?.sort_by_date().print();
+
+    // --- STEP C: Deep Multi-layered Filtering Pipelines ---
+    println!("\n[4] Isolated Deep Dive: Food & Dining outlays using 'Main Checking'...");
+    chained_user
+        .transactions()?
+        .filter_group("Food & Dining")
+        .filter_fund("Main Checking")
+        .sort_by_amount()
+        .print();
+
+    println!("\n[5] Investment Activity Radar: Brokerage allocations across any currency asset...");
+    chained_user
+        .transactions()?
+        .filter_group("Investments")
+        .filter_fund("Investment Brokerage")
+        .sort_by_date()
+        .print();
+
+    println!("\n[6] Foreign Currency Operations: Isolating multi-currency JPY positions...");
+    chained_user
+        .transactions()?
+        .filter_currency("JPY")
+        .sort_by_amount()
+        .print();
+
+    // --- STEP D: Executing System Data Cleanups via Query Index Deletion ---
+    println!(
+        "\n[7] Target Scrubber: Deleting a specific Transaction entry and tracking linkage changes..."
+    );
+    // Grab the current sorted listing window scope to capture index context safely
+    let tx_query = chained_user
+        .transactions()?
+        .filter_group("Housing & Utilities")
+        .sort_by_amount();
+    println!("--- Housing & Utilities items BEFORE indexed execution removal ---");
+    let tx_query = tx_query.print();
+
+    // Perform index item extraction (Targeting index row 2 from current selection window)
+    println!("Executing cascading linked transaction erasure at index position 2...");
+    let tx_query = tx_query.delete(2)?;
+    println!("--- Housing & Utilities items AFTER index execution removal ---");
+    tx_query.print();
+
+    // --- STEP E: Struct Balancing Cleanup Operations ---
+    println!("\n[8] Configuration Scrubber: Removing unused structural criteria items...");
+
+    // View current funds setup
+    let fund_query = chained_user.funds()?.sort_by_name().print();
+    println!("Removing index item #3 from active account funds options...");
+    fund_query.delete(3)?.print();
+
+    // View current categories setup
+    let cat_query = chained_user.categories()?.sort_by_name().print();
+    println!("Removing item entry #5 from system category variants definitions...");
+    cat_query.delete(5)?.print();
+
+    // View current groupings layout
+    let group_query = chained_user.groups()?.sort_by_name().print();
+    println!("Removing entry configuration mapping item #4 from active tracking layout groups...");
+    group_query.delete(4)?.print();
+
+    // --- STEP F: Final Integrity Reporting Check ---
+    println!("\n[9] Running Final Engine State System Verification Sweep...");
+    chained_user.transactions()?.sort_by_date().print();
+
+    println!("--- SIMULATION PATH EXECUTED SUCCESSFULLY ---");
     Ok(())
 }
