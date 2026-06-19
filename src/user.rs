@@ -18,6 +18,8 @@ use std::fs;
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::user::InputError::WrongVariant;
+
 pub const NAME_LIMIT: usize = 25;
 pub const DESC_LIMIT: usize = 25;
 pub const AMOUNT_LIMIT: usize = 10;
@@ -97,8 +99,10 @@ impl User {
         category: &str,
         fund: &str,
     ) -> Result<&Self, UserError> {
-        let group = self.get_group(group)?;
         let category = self.get_category(category)?;
+        self.check_category_variant(category, CategoryVariant::Single)?;
+
+        let group = self.get_group(group)?;
         let fund = self.get_fund(fund)?;
         let currency = self.get_currency(currency)?;
 
@@ -133,8 +137,10 @@ impl User {
         source_fund: &str,
         target_fund: &str,
     ) -> Result<&Self, UserError> {
-        let group = self.get_group(group)?;
         let category = self.get_category(category)?;
+        self.check_category_variant(category, CategoryVariant::Paired)?;
+
+        let group = self.get_group(group)?;
         let date = Date::new(day, month, year)?;
 
         let source_currency = self.get_currency(source_currency)?;
@@ -264,6 +270,28 @@ impl User {
 }
 
 impl User {
+    fn check_category_variant(&self, id: Uuid, variant: CategoryVariant) -> Result<(), UserError> {
+        let existing = self
+            .conn
+            .query_row(
+                "SELECT variant FROM categories WHERE id = ?1",
+                [id],
+                |row| row.get::<_, CategoryVariant>(0),
+            )
+            .map_err(UserError::SQL);
+
+        match existing {
+            Ok(v) => {
+                if v != variant {
+                    Err(UserError::Input(WrongVariant(format!("{:?}", v))))
+                } else {
+                    Ok(())
+                }
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     fn get_group(&self, name: &str) -> Result<Uuid, UserError> {
         self.get_from_table(name, &TableTarget::GROUP)
     }
@@ -384,7 +412,12 @@ impl User {
 
     pub fn print_category(&self) -> Result<&Self, UserError> {
         let rows = self.ls_category()?;
-        self.print_table("CATEGORY", &["NAME", "VARIANT"], &[NAME_LIMIT, VARIANT_LIMIT], &rows);
+        self.print_table(
+            "CATEGORY",
+            &["NAME", "VARIANT"],
+            &[NAME_LIMIT, VARIANT_LIMIT],
+            &rows,
+        );
         Ok(self)
     }
 
@@ -431,6 +464,8 @@ impl User {
 pub enum InputError {
     #[error("Failed to create directory: {0}.")]
     InvalidDir(String),
+    #[error("{0} already exists but as a different category type.")]
+    WrongVariant(String),
 }
 
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]

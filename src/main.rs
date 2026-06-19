@@ -2,9 +2,10 @@ mod user;
 use user::*;
 
 fn main() -> Result<(), UserError> {
-    print! {"\n\n\n\n\n\n\n\n--------------------------------------------------\n\n"};
+    println!("\n--------------------------------------------------\n");
 
     let user = User::new("TEST")?;
+
     user.add_group("du bist gut genug")?
         .add_currency("SGD")?
         .add_group("gift")?
@@ -33,13 +34,14 @@ fn main() -> Result<(), UserError> {
             "convert",
             "multicurrency",
             "multicurrency",
-        )?
-        .print_transaction()?
+        )?;
+
+    user.print_transaction()?
         .print_group()?
         .print_category()?
         .print_fund()?
         .print_currency()?;
 
-    print! {"\n--------------------------------------------------\n\n"};
+    println!("\n--------------------------------------------------\n");
     Ok(())
 }

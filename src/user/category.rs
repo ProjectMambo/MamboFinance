@@ -36,7 +36,7 @@ impl Display for Category {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum CategoryVariant {
     Single = 0,
     Paired = 1,
