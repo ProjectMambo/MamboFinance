@@ -8,6 +8,7 @@ mod transaction;
 mod types;
 
 // Re-exports/Imports from internal modules
+pub use category::CategoryVariant;
 use category::*;
 use currency::*;
 use fund::*;
@@ -243,7 +244,7 @@ impl User {
     /// Registers a new single-variant category if it does not already exist.
     pub fn add_category(&self, name: &str) -> Result<&Self, UserError> {
         let label = Label::new(name, None);
-        self.add_unique_to_table::<Currency>(name, &label, |conn, label| {
+        self.add_unique_to_table::<Category>(name, &label, |conn, label| {
             conn.execute(
                 "INSERT INTO categories (id, name, variant) VALUES (?1, ?2, ?3)",
                 rusqlite::params![label.id, label.name, 0],
@@ -493,6 +494,54 @@ impl User {
         println!("{sep}");
         println!();
     }
+
+    fn print_table_with_link<T: Display>(
+        &self,
+        title: &str,
+        headers: &[&str],
+        widths: &[usize],
+        rows: &[T],
+        link_header: &str,
+        link_labels: &[String],
+    ) {
+        let no_width = rows.len().to_string().len().max(2);
+
+        // dynamic, like no_width — based on actual content + header label
+        let link_width = link_labels
+            .iter()
+            .map(|s| s.len())
+            .chain(std::iter::once(link_header.len()))
+            .max()
+            .unwrap_or(link_header.len());
+
+        let sep: String = format!("+{}", "-".repeat(no_width + 2))
+            + &widths
+                .iter()
+                .map(|w| format!("+{}", "-".repeat(w + 2)))
+                .collect::<String>()
+            + &format!("+{}", "-".repeat(link_width + 2))
+            + "+";
+
+        let header: String = format!("| {:<no_width$} ", "NO")
+            + &headers
+                .iter()
+                .zip(widths.iter())
+                .map(|(h, w)| format!("| {:<w$} ", h))
+                .collect::<String>()
+            + &format!("| {:<link_width$} ", link_header)
+            + "|";
+
+        println!();
+        println!("> {title}");
+        println!("{sep}");
+        println!("{header}");
+        println!("{sep}");
+        for (i, (row, link)) in rows.iter().zip(link_labels.iter()).enumerate() {
+            println!("| {:<no_width$} | {row} | {:<link_width$} |", i + 1, link);
+        }
+        println!("{sep}");
+        println!();
+    }
 }
 
 /// Errors related to data processing constraints and index range checks.
@@ -506,6 +555,14 @@ pub enum InputError {
 
     #[error("No item at index {0}.")]
     InvalidIndex(usize),
+
+    #[error("{0} already exists in {1}")]
+    ExistingItem(String, String),
+
+    #[error(
+        "Category used by {0} transaction(s), restricted from editing variant. Use 'force_edit_variant' to unlink all transactions for this category and edit."
+    )]
+    CategoryInUse(usize),
 }
 
 /// Top-level error enum wrapping specialized subsystem failure states.

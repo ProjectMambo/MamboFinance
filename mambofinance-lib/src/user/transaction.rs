@@ -68,16 +68,21 @@ impl Printable for Transaction {
 
     fn headers() -> &'static [&'static str] {
         &[
-            "NAME", "DESC", "AMOUNT", "DATE", "GROUP", "CATEGORY", "FUND",
+            "NAME",
+            "DESCRIPTION",
+            "AMOUNT",
+            "DATE",
+            "GROUP",
+            "CATEGORY",
+            "FUND",
         ]
     }
-
     fn widths() -> &'static [usize] {
         &[
             NAME_LIMIT,
             DESC_LIMIT,
-            AMOUNT_LIMIT + 13, // Standard amount character allowance with spacing padded for currency codes
-            11,                // Formatted date string padding allocation (DD-MM-YYYY)
+            AMOUNT_LIMIT + 13,
+            11,
             NAME_LIMIT,
             NAME_LIMIT,
             NAME_LIMIT,

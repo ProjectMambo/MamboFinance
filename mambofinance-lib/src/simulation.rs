@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::user::CategoryVariant;
 use crate::user::{User, UserError};
 
 pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
@@ -18,6 +19,8 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
         .add_group("Healthcare")?
         .add_group("Investments")?
         .add_group("Salary & Business Income")?
+        .add_group("Education & Self-Improvement")? // Extended group
+        .add_group("Miscellanous Mishaps")? // Extended group
         .add_fund("Main Checking")?
         .add_fund("High-Yield Savings")?
         .add_fund("Physical Wallet")?
@@ -35,6 +38,8 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
         .add_category("Stocks ETF")?
         .add_category("Primary Paycheck")?
         .add_category("Freelance Gig")?
+        .add_category("Books & Courses")? // Extended category
+        .add_category("Fines & Fees")? // Extended category
         .add_paired_category("Internal Transfer")?
         .add_paired_category("Currency Exchange")?;
 
@@ -71,8 +76,8 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
 
     let mut chained_user = user;
 
-    // --- LOOP 1: Simulate 4 Months of Paychecks & Income (12 actions) ---
-    for month in 5..=8 {
+    // --- LOOP 1: Extended to 8 Months of Paychecks & Income (24 distinct actions) ---
+    for month in 1..=8 {
         chained_user = chained_user
             .add_transaction(
                 "Bi-Weekly Salary",
@@ -103,8 +108,8 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
             )?;
     }
 
-    // --- LOOP 2: Simulate Recurring Monthly Fixed Bills (16 actions) ---
-    for month in 5..=8 {
+    // --- LOOP 2: Extended to 8 Months of Recurring Fixed Bills (32 distinct actions) ---
+    for month in 1..=8 {
         chained_user = chained_user
             .add_transaction(
                 "Monthly Rent",
@@ -144,8 +149,8 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
             )?;
     }
 
-    // --- LOOP 3: High-Frequency Variable Expenses (60 actions) ---
-    for month in 5..=7 {
+    // --- LOOP 3: High-Frequency Variable Expenses Expanded (96 distinct actions) ---
+    for month in 1..=6 {
         for week in 0..4 {
             let day_offset: u8 = week * 7;
 
@@ -194,8 +199,8 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
         }
     }
 
-    // --- LOOP 4: Monthly Financial Adjustments & Inter-Account Shifts (24 actions) ---
-    for month in 5..=8 {
+    // --- LOOP 4: High-Volume Monthly Inter-Account Shifts & Allocations (48 paired entries) ---
+    for month in 1..=8 {
         chained_user = chained_user
             .add_paired_transaction(
                 "Monthly Savings Sweep",
@@ -266,97 +271,140 @@ pub fn simulate_user_activity(user: &User) -> Result<(), UserError> {
     }
 
     // =========================================================================
-    // 2. EXTENDED SIMULATION: QUERIES, FILTERS, SORTS & SYSTEM DELETIONS
+    // 2. EXTENDED SIMULATION: QUERIES, FILTERS, SORTS & SYSTEM MUTATIONS
     // =========================================================================
     println!("\n--- STARTING ADVANCED QUERY ANALYSIS AND DATA CLEANUP ---");
 
-    // --- STEP A: Initial Structural Grouping Outputs ---
-    println!("\n[1] Rendering structural settings catalogs sorted...");
-    chained_user.groups()?.sort_by_name().print();
-    chained_user
-        .categories()?
-        .sort_by_name()
-        .sort_by_type()
-        .print();
-    chained_user.funds()?.sort_by_name().print();
-    chained_user.currencies()?.sort_by_name().print();
-
-    // --- STEP B: High Volume Multi-Stage Sorting & Isolation Checks ---
-    println!("\n[2] Master Ledger: All transactions ordered by Currency -> Amount -> Name");
+    // --- STEP A: Comprehensive Chained Sort Layouts ---
+    println!(
+        "\n[1] Smart Budget Layout: Transactions filtered by USD, ordered by Inner Absolute Volume -> Splitting Flow +/- blocks"
+    );
     chained_user
         .transactions()?
-        .sort_by_name()
-        .sort_by_amount()
-        .sort_by_currency()
+        .filter_currency("USD")
+        .sort_by_abs_amount() // Step 1: Smallest volumetric change to largest
+        .sort_by_flow() // Step 2: Clear split block (+ve income grouped at top, -ve below)
         .print();
 
-    println!("\n[3] Historical Timeline: All transactions ordered by Date chronologically");
-    chained_user.transactions()?.sort_by_date().print();
+    println!(
+        "\n[2] Pure Volumetric Sieve: All global entries purely by scale of absolute change value"
+    );
+    chained_user.transactions()?.sort_by_abs_amount().print();
 
-    // --- STEP C: Deep Multi-layered Filtering Pipelines ---
-    println!("\n[4] Isolated Deep Dive: Food & Dining outlays using 'Main Checking'...");
-    chained_user
+    // --- STEP B: Advanced Editing/Mutation Assertions ---
+    println!("\n[3] Target Adjustment Scrubber: Mutating fields across single and paired items...");
+
+    // Isolate a local target subset to fetch a reliable index row mapping
+    let food_query = chained_user
         .transactions()?
         .filter_group("Food & Dining")
-        .filter_fund("Main Checking")
-        .sort_by_amount()
-        .print();
-
-    println!("\n[5] Investment Activity Radar: Brokerage allocations across any currency asset...");
-    chained_user
-        .transactions()?
-        .filter_group("Investments")
-        .filter_fund("Investment Brokerage")
-        .sort_by_date()
-        .print();
-
-    println!("\n[6] Foreign Currency Operations: Isolating multi-currency JPY positions...");
-    chained_user
-        .transactions()?
-        .filter_currency("JPY")
-        .sort_by_amount()
-        .print();
-
-    // --- STEP D: Executing System Data Cleanups via Query Index Deletion ---
-    println!(
-        "\n[7] Target Scrubber: Deleting a specific Transaction entry and tracking linkage changes..."
-    );
-    // Grab the current sorted listing window scope to capture index context safely
-    let tx_query = chained_user
-        .transactions()?
-        .filter_group("Housing & Utilities")
         .sort_by_amount();
-    println!("--- Housing & Utilities items BEFORE indexed execution removal ---");
-    let tx_query = tx_query.print();
 
-    // Perform index item extraction (Targeting index row 2 from current selection window)
-    println!("Executing cascading linked transaction erasure at index position 2...");
-    let tx_query = tx_query.delete(2)?;
-    println!("--- Housing & Utilities items AFTER index execution removal ---");
-    tx_query.print();
+    println!("--- Food & Dining items BEFORE field modifications ---");
+    let food_query = food_query.print();
 
-    // --- STEP E: Struct Balancing Cleanup Operations ---
-    println!("\n[8] Configuration Scrubber: Removing unused structural criteria items...");
+    println!(
+        "Modifying entry #1 title name, changing date timeline, and altering ledger amount value..."
+    );
+    let food_query = food_query
+        .edit_name(1, "Premium Organic Foods")?
+        .edit_date(1, 28, 2, 2026)?
+        .edit_amount(1, -9950)?;
 
-    // View current funds setup
-    let fund_query = chained_user.funds()?.sort_by_name().print();
-    println!("Removing index item #3 from active account funds options...");
-    fund_query.delete(3)?.print();
+    println!("--- Food & Dining items AFTER field modifications ---");
+    let food_query = food_query.print();
 
-    // View current categories setup
+    // --- STEP C: Relational Validation via Linked Structural Mutators ---
+    println!("\n[4] Inter-Account Fund/Currency Mutation Scrubber...");
+    let transit_query = chained_user
+        .transactions()?
+        .filter_group("Transportation")
+        .sort_by_date();
+
+    println!("--- Transportation logs before fund re-assignment ---");
+    let transit_query = transit_query.print();
+
+    println!("Reassigning underlying asset fund wallet structure for line item #2...");
+    let transit_query = transit_query.edit_fund(2, "Physical Wallet")?;
+
+    println!("Changing asset processing currency reference to Euro for line item #2...");
+    let transit_query = transit_query.edit_currency(2, "EUR")?;
+
+    println!("--- Transportation logs after fund re-assignment ---");
+    transit_query.print();
+
+    // --- STEP D: Structural Master Definitions Schema Updates ---
+    println!("\n[5] Structural Metadata Modifications (Unique Tables)...");
+
+    let groups_query = chained_user.groups()?.sort_by_name().print();
+    println!("Renaming tracking group entry #4 in metadata table...");
+    let groups_query = groups_query.edit_name(4, "Entertainment & Media")?;
+    groups_query.print();
+
+    // --- STEP E: Safe Category Variant Swapping Assertions ---
+    println!("\n[6] Safe Structural Configuration Variants Alteration Check...");
+
+    // Provision a brand-new, completely unlinked category to guarantee an empty state
+    chained_user = chained_user.add_category("Unused Prototype Budget")?;
+
+    // Fetch categories sorted alphabetically so we can find our targets
     let cat_query = chained_user.categories()?.sort_by_name().print();
-    println!("Removing item entry #5 from system category variants definitions...");
-    cat_query.delete(5)?.print();
 
-    // View current groupings layout
-    let group_query = chained_user.groups()?.sort_by_name().print();
-    println!("Removing entry configuration mapping item #4 from active tracking layout groups...");
-    group_query.delete(4)?.print();
+    // 1. EXTRACT INDICES FIRST while we still have full access to cat_query.rows
+    let unused_idx = cat_query
+        .rows
+        .iter()
+        .position(|c| c.label.name == "UNUSED PROTOTYPE BUDGET")
+        .map(|i| i + 1)
+        .unwrap_or(1);
+    let in_use_idx = cat_query
+        .rows
+        .iter()
+        .position(|c| c.label.name == "GROCERIES")
+        .map(|i| i + 1)
+        .unwrap_or(2);
 
-    // --- STEP F: Final Integrity Reporting Check ---
+    println!(
+        "Attempting safe change of empty category type variant state ('Unused Prototype Budget' at index {unused_idx})..."
+    );
+    // 2. This moves cat_query, but returns a fresh one which we bind back to `cat_query`
+    let mut cat_query = cat_query.edit_variant(unused_idx, CategoryVariant::Paired)?;
+    println!("Successfully swapped variant on empty category!");
+
+    println!(
+        "Attempting a blocked variant edit on a category currently mapped to active transactions ('Groceries' at index {in_use_idx})..."
+    );
+
+    // 3. Since edit_variant takes `self` by value, we must capture whatever it returns
+    // inside BOTH arms of the match statement so we don't lose the value on failure.
+    cat_query = match cat_query.edit_variant(in_use_idx, CategoryVariant::Paired) {
+        Err(e) => {
+            println!("Caught expected block validation guard successfully: {e}");
+            // Return the unconsumed query collection out of the match block if it failed
+            let fresh_lookup = chained_user.categories()?.sort_by_name();
+            fresh_lookup
+        }
+        Ok(_) => {
+            panic!("Validation Failure: System allowed variant change for active attached entries!")
+        }
+    };
+
+    // --- STEP F: Forcing Cascaded Structural Overwrites ---
+    println!("\n[7] Forced Structural Re-Balancing Overwrites...");
+
+    // 4. Now we can cleanly pass the valid query chain into the force wrapper!
+    let cat_query = cat_query.force_edit_variant(in_use_idx, CategoryVariant::Paired)?;
+    cat_query.print();
+
+    // --- STEP G: Destructive Pipeline Removals ---
+    println!("\n[8] Executing Final Selective System Cleanups...");
+    let ledger = chained_user.transactions()?.sort_by_date();
+    println!("Purging chronological record at position #1...");
+    let ledger = ledger.delete(1)?;
+
     println!("\n[9] Running Final Engine State System Verification Sweep...");
-    chained_user.transactions()?.sort_by_date().print();
+    ledger.print();
 
-    println!("--- SIMULATION PATH EXECUTED SUCCESSFULLY ---");
+    println!("--- EXTENDED SIMULATION PATH EXECUTED SUCCESSFULLY ---");
     Ok(())
 }
