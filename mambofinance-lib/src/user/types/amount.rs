@@ -51,6 +51,8 @@ impl Display for Amount {
     }
 }
 
+impl Eq for Amount {}
+
 impl PartialEq for Amount {
     /// Asserts equality only if both the tracking asset currency and numeric values match exactly.
     fn eq(&self, other: &Self) -> bool {

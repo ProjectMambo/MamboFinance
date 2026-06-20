@@ -2,7 +2,7 @@
 use crate::user::{
     Category, Currency, Date, Fund, Group, HasLabel,
     InputError::{self, ExistingItem},
-    Label, Transaction, User, UserError,
+    Label, NAME_LIMIT, Transaction, User, UserError,
     category::CategoryVariant,
 };
 use std::collections::HashMap;
@@ -33,8 +33,7 @@ impl<'a> Query<'a, Category> {
 impl<'a> Query<'a, Transaction> {
     /// Sorts transactions chronologically from oldest to newest.
     pub fn sort_by_date(mut self) -> Self {
-        self.rows
-            .sort_by_key(|t| (t.date.year, t.date.month, t.date.day));
+        self.rows.sort_by_key(|t| t.date);
         self
     }
 
@@ -62,38 +61,35 @@ impl<'a> Query<'a, Transaction> {
     }
 
     /// Filters the internal collection to only contain transactions belonging to the given group.
-    pub fn filter_group(mut self, group: &str) -> Self {
-        self.rows
-            .retain(|t| t.group.label.name == Label::fmt(group));
-        self
+    pub fn filter_group(self, group: &str) -> Self {
+        self.filter(|t| t.group.label.name == Label::fmt(group))
     }
 
     /// Filters the internal collection to only contain transactions tied to the given asset fund/account.
-    pub fn filter_fund(mut self, fund: &str) -> Self {
-        self.rows.retain(|t| t.fund.label.name == Label::fmt(fund));
-        self
+    pub fn filter_fund(self, fund: &str) -> Self {
+        self.filter(|t| t.fund.label.name == Label::fmt(fund))
     }
 
     /// Filters the internal collection to only contain transactions matching the given category.
-    pub fn filter_category(mut self, category: &str) -> Self {
-        self.rows
-            .retain(|t| t.category.label.name == Label::fmt(category));
-        self
+    pub fn filter_category(self, category: &str) -> Self {
+        self.filter(|t| t.category.label.name == Label::fmt(category))
     }
 
     /// Filters the internal collection to only contain transactions using the specified currency asset type.
-    pub fn filter_currency(mut self, currency: &str) -> Self {
-        self.rows
-            .retain(|t| t.amount.currency.label.name == Label::fmt(currency));
-        self
+    pub fn filter_currency(self, currency: &str) -> Self {
+        self.filter(|t| t.amount.currency.label.name == Label::fmt(currency))
     }
 }
 
 /// Abstract representation of printable terminal tables providing structural spacing details.
 pub trait Printable {
     fn title() -> &'static str;
-    fn headers() -> &'static [&'static str];
-    fn widths() -> &'static [usize];
+    fn headers() -> &'static [&'static str] {
+        &["NAME"]
+    }
+    fn widths() -> &'static [usize] {
+        &[NAME_LIMIT]
+    }
 }
 
 impl<'a, T: HasLabel> Query<'a, T> {

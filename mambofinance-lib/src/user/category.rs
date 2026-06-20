@@ -1,7 +1,6 @@
 // Imports from internal user module
 use crate::user::{HasLabel, Label, NAME_LIMIT, Printable, VARIANT_LIMIT};
 use std::fmt::{Display, Formatter};
-use uuid::Uuid;
 
 /// Represents a transaction classification group which determines structural rules.
 #[derive(Clone)]
@@ -45,12 +44,8 @@ impl Display for Category {
 }
 
 impl HasLabel for Category {
-    fn name(&self) -> &str {
-        &self.label.name
-    }
-
-    fn id(&self) -> Uuid {
-        self.label.id
+    fn label(&self) -> &Label {
+        &self.label
     }
 
     fn table() -> &'static str {

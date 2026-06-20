@@ -1,7 +1,6 @@
 // Imports from internal user module
-use crate::user::{HasLabel, Label, NAME_LIMIT, Printable};
+use crate::user::{HasLabel, Label, Printable};
 use std::fmt::{Display, Formatter};
-use uuid::Uuid;
 
 /// Represents a structural category classification used to organize ledger operations.
 #[derive(Clone)]
@@ -33,12 +32,8 @@ impl Display for Group {
 }
 
 impl HasLabel for Group {
-    fn name(&self) -> &str {
-        &self.label.name
-    }
-
-    fn id(&self) -> Uuid {
-        self.label.id
+    fn label(&self) -> &Label {
+        &self.label
     }
 
     fn table() -> &'static str {
@@ -49,13 +44,5 @@ impl HasLabel for Group {
 impl Printable for Group {
     fn title() -> &'static str {
         "GROUP"
-    }
-
-    fn headers() -> &'static [&'static str] {
-        &["NAME"]
-    }
-
-    fn widths() -> &'static [usize] {
-        &[NAME_LIMIT]
     }
 }

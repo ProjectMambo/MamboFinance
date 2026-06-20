@@ -48,12 +48,8 @@ impl Display for Transaction {
 }
 
 impl HasLabel for Transaction {
-    fn name(&self) -> &str {
-        &self.label.name
-    }
-
-    fn id(&self) -> Uuid {
-        self.label.id
+    fn label(&self) -> &Label {
+        &self.label
     }
 
     fn table() -> &'static str {

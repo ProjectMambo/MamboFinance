@@ -1,7 +1,6 @@
 // Imports from internal user module
-use crate::user::{HasLabel, Label, NAME_LIMIT, Printable};
+use crate::user::{HasLabel, Label, Printable};
 use std::fmt::{Display, Formatter};
-use uuid::Uuid;
 
 /// Represents a financial currency asset descriptor used for monetary valuation.
 #[derive(Clone)]
@@ -37,12 +36,8 @@ impl Display for Currency {
 }
 
 impl HasLabel for Currency {
-    fn name(&self) -> &str {
-        &self.label.name
-    }
-
-    fn id(&self) -> Uuid {
-        self.label.id
+    fn label(&self) -> &Label {
+        &self.label
     }
 
     fn table() -> &'static str {
@@ -53,14 +48,6 @@ impl HasLabel for Currency {
 impl Printable for Currency {
     fn title() -> &'static str {
         "CURRENCY"
-    }
-
-    fn headers() -> &'static [&'static str] {
-        &["NAME"]
-    }
-
-    fn widths() -> &'static [usize] {
-        &[NAME_LIMIT]
     }
 }
 

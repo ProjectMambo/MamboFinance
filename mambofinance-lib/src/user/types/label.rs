@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
 /// Provides unique identity, naming, and optional textual descriptions for database entities.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Label {
     pub id: Uuid,
     pub name: String,
@@ -75,27 +75,18 @@ impl Display for Label {
         }
 
         // Plus-sign layout format (`{:+}`)
-        if f.sign_plus() {
-            let truncated: String = self.name.chars().take(NAME_LIMIT).collect();
-            write!(f, "{:<width$}", truncated, width = NAME_LIMIT)?;
-
-            let des = match &self.description {
-                Some(des) => des,
-                None => "",
-            };
-
-            let truncated: String = des.chars().take(DESC_LIMIT).collect();
-
-            return write!(f, " | {:<width$}", truncated, width = DESC_LIMIT);
-        }
+        let des = f.sign_plus().then_some(match &self.description {
+            Some(des) => des.as_str(),
+            None => "",
+        });
 
         // Standard layout format (`{}`)
-        let truncated: String = self.name.chars().take(NAME_LIMIT).collect();
+        let mut truncated: String = self.name.chars().take(NAME_LIMIT).collect();
         write!(f, "{:<width$}", truncated, width = NAME_LIMIT)?;
 
-        match &self.description {
+        match des {
             Some(des) => {
-                let truncated: String = des.chars().take(NAME_LIMIT).collect();
+                truncated = des.chars().take(DESC_LIMIT).collect();
                 write!(f, " | {:<width$}", truncated, width = DESC_LIMIT)
             }
             None => Ok(()),
@@ -105,7 +96,14 @@ impl Display for Label {
 
 /// Interface indicating an entity can expose a uniform metadata `Label` structure and data origin table.
 pub trait HasLabel {
-    fn name(&self) -> &str;
-    fn id(&self) -> Uuid;
+    fn name(&self) -> &str {
+        &self.label().name
+    }
+
+    fn id(&self) -> Uuid {
+        self.label().id
+    }
+
+    fn label(&self) -> &Label;
     fn table() -> &'static str;
 }

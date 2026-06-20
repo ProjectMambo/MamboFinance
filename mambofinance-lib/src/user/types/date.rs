@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 
@@ -8,7 +9,7 @@ const MONTHS_NAME: [&str; 12] = [
 ];
 
 /// Represents a validated calendar date optimized for local accounting logs.
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct Date {
     pub day: u8,
     pub month: u8,
@@ -70,6 +71,26 @@ impl Display for Date {
             MONTHS_NAME[(self.month - 1) as usize],
             self.year
         )
+    }
+}
+
+impl Eq for Date {}
+
+impl PartialEq for Date {
+    fn eq(&self, other: &Self) -> bool {
+        self.year == other.year && self.month == other.month && self.day == other.day
+    }
+}
+
+impl Ord for Date {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.year, self.month, self.day).cmp(&(other.year, other.month, other.day))
+    }
+}
+
+impl PartialOrd for Date {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
