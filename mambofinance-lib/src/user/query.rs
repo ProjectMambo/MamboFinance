@@ -12,12 +12,41 @@ use uuid::Uuid;
 pub struct Query<'a, T> {
     pub user: &'a User,
     pub rows: Vec<T>,
+    pub filtered_rows: Vec<T>,
+}
+
+impl<'a, T> Query<'a, T> {
+    pub fn new(user: &'a User, rows: Vec<T>) -> Self {
+        Query {
+            user,
+            rows,
+            filtered_rows: Vec::new(),
+        }
+    }
 }
 
 impl<'a, T: HasLabel> Query<'a, T> {
     /// Sorts the internal dataset alphabetically by name using lexical sorting order.
     pub fn sort_by_name(mut self) -> Self {
         self.rows.sort_by(|a, b| a.name().cmp(b.name()));
+        self
+    }
+
+    pub fn sort_reverse(mut self) -> Self {
+        self.rows.reverse();
+        self
+    }
+
+    pub fn filter_reverse(mut self) -> Self {
+        std::mem::swap(&mut self.rows, &mut self.filtered_rows);
+        self
+    }
+
+    fn filter(mut self, part: impl FnMut(&T) -> bool) -> Self {
+        let (matching, rejected): (Vec<_>, Vec<_>) = self.rows.into_iter().partition(part);
+
+        self.rows = matching;
+        self.filtered_rows.extend(rejected);
         self
     }
 }
@@ -50,6 +79,27 @@ impl<'a> Query<'a, Transaction> {
 
     pub fn sort_by_flow(mut self) -> Self {
         self.rows.sort_by_key(|t| t.amount.value < 0);
+        self
+    }
+
+    /// Filters the internal collection to only contain transactions belonging to the given group.
+    pub fn sort_group(mut self) -> Self {
+        self.rows
+            .sort_by(|a, b| a.group.name().cmp(b.group.name()));
+        self
+    }
+
+    /// Filters the internal collection to only contain transactions tied to the given asset fund/account.
+    pub fn sort_fund(mut self) -> Self {
+        self.rows
+            .sort_by(|a, b| a.fund.name().cmp(b.fund.name()));
+        self
+    }
+
+    /// Filters the internal collection to only contain transactions matching the given category.
+    pub fn sort_category(mut self) -> Self {
+        self.rows
+            .sort_by(|a, b| a.category.name().cmp(b.category.name()));
         self
     }
 

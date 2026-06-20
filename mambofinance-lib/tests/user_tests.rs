@@ -4,7 +4,7 @@
 // Private methods (ls_*, get_*, check_category_variant) are tested
 // internally in src/user.rs's #[cfg(test)] block instead.
 
-use mambofinance_lib::user::{CategoryVariant, User};
+use mambofinance_lib::user::User;
 
 fn setup() -> User {
     User::new_in_memory("test").unwrap()

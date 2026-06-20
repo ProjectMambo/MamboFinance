@@ -35,6 +35,57 @@ fn setup_paired_deps(user: &User) {
         .unwrap();
 }
 
+// ===== New Engine Feature Tests: sort_reverse, filter_reverse =====
+
+#[test]
+fn query_sort_reverse_inverts_row_order_completely() {
+    let user = setup();
+    user.add_group("A").unwrap();
+    user.add_group("B").unwrap();
+    user.add_group("C").unwrap();
+
+    let query = user.groups().unwrap().sort_by_name().sort_reverse();
+    assert_eq!(query.rows[0].label.name, "C");
+    assert_eq!(query.rows[1].label.name, "B");
+    assert_eq!(query.rows[2].label.name, "A");
+}
+
+#[test]
+fn query_filter_reverse_swaps_active_and_filtered_sets() {
+    let user = setup();
+    setup_transaction_deps(&user);
+    user.add_group("Transport").unwrap();
+    user.add_category("Petrol").unwrap();
+    
+    user.add_transaction("Lunch", None, (1200, "MYR"), (1, 6, 2026), "Food", "Groceries", "Checking").unwrap();
+    user.add_transaction("Dinner", None, (2500, "MYR"), (2, 6, 2026), "Food", "Groceries", "Checking").unwrap();
+    user.add_transaction("Ride", None, (1500, "MYR"), (3, 6, 2026), "Transport", "Petrol", "Checking").unwrap();
+
+    // Filter down to Food (Lunch & Dinner are active, Ride is shelved)
+    let query = user.transactions().unwrap().filter_group("Food");
+    assert_eq!(query.rows.len(), 2);
+
+    // Reverse the filter state (Ride becomes active, Lunch & Dinner go to shelved)
+    let inverted = query.filter_reverse();
+    assert_eq!(inverted.rows.len(), 1);
+    assert_eq!(inverted.rows[0].label.name, "Ride");
+}
+
+#[test]
+fn query_filter_reverse_consecutive_calls_are_idempotent() {
+    let user = setup();
+    setup_transaction_deps(&user);
+    user.add_transaction("Lunch", None, (1200, "MYR"), (1, 6, 2026), "Food", "Groceries", "Checking").unwrap();
+
+    let query = user.transactions().unwrap()
+        .filter_group("Food")      // rows: 1, shelved: 0
+        .filter_reverse()          // rows: 0, shelved: 1
+        .filter_reverse();         // rows: 1, shelved: 0
+
+    assert_eq!(query.rows.len(), 1);
+    assert_eq!(query.rows[0].label.name, "Lunch");
+}
+
 // ===== sort_by_name (generic, HasLabel) =====
 
 #[test]

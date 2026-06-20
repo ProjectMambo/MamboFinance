@@ -434,34 +434,19 @@ impl User {
 
 impl User {
     pub fn transactions(&self) -> Result<Query<'_, Transaction>, UserError> {
-        Ok(Query {
-            user: self,
-            rows: self.ls_transaction()?,
-        })
+        Ok(Query::new(self, self.ls_transaction()?))
     }
     pub fn groups(&self) -> Result<Query<'_, Group>, UserError> {
-        Ok(Query {
-            user: self,
-            rows: self.ls_group()?,
-        })
+        Ok(Query::new(self, self.ls_group()?))
     }
     pub fn categories(&self) -> Result<Query<'_, Category>, UserError> {
-        Ok(Query {
-            user: self,
-            rows: self.ls_category()?,
-        })
+        Ok(Query::new(self, self.ls_category()?))
     }
     pub fn funds(&self) -> Result<Query<'_, Fund>, UserError> {
-        Ok(Query {
-            user: self,
-            rows: self.ls_fund()?,
-        })
+        Ok(Query::new(self, self.ls_fund()?))
     }
     pub fn currencies(&self) -> Result<Query<'_, Currency>, UserError> {
-        Ok(Query {
-            user: self,
-            rows: self.ls_currency()?,
-        })
+        Ok(Query::new(self, self.ls_currency()?))
     }
 
     /// Renders a structured CLI table to standard output for visual reporting.
