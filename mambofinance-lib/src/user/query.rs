@@ -98,6 +98,10 @@ pub trait Printable {
 
 impl<'a, T: HasLabel> Query<'a, T> {
     fn get_by_index(&self, no: usize) -> Result<Uuid, UserError> {
+        if no == 0 {
+            return Err(UserError::Input(InputError::InvalidIndex(no)));
+        }
+
         self.rows
             .get(no - 1)
             .map(|r| r.id())
@@ -369,6 +373,9 @@ impl<'a> Query<'a, Transaction> {
 
     /// Removes a single transaction or a double-entry pair from the database using its visible table position.
     pub fn delete(self, no: usize) -> Result<Self, UserError> {
+        if no == 0 {
+            return Err(UserError::Input(InputError::InvalidIndex(no)));
+        }
         let row = self
             .rows
             .get(no - 1)
@@ -384,6 +391,10 @@ impl<'a> Query<'a, Transaction> {
         column: &str,
         value: impl rusqlite::ToSql,
     ) -> Result<(), UserError> {
+        if no == 0 {
+            return Err(UserError::Input(InputError::InvalidIndex(no)));
+        }
+
         let row = self
             .rows
             .get(no - 1)
@@ -417,6 +428,10 @@ impl<'a> Query<'a, Transaction> {
     }
 
     pub fn edit_date(self, no: usize, day: u8, month: u8, year: u16) -> Result<Self, UserError> {
+        if no == 0 {
+            return Err(UserError::Input(InputError::InvalidIndex(no)));
+        }
+
         let date = Date::new(day, month, year)?;
         let row = self
             .rows
@@ -438,6 +453,9 @@ impl<'a> Query<'a, Transaction> {
     }
 
     pub fn edit_category(self, no: usize, new_category: &str) -> Result<Self, UserError> {
+        if no == 0 {
+            return Err(UserError::Input(InputError::InvalidIndex(no)));
+        }
         let row = self
             .rows
             .get(no - 1)
@@ -510,5 +528,275 @@ impl<'a> Query<'a, Transaction> {
             )
             .map(|_| ())
         })
+    }
+}
+
+// ============================================================
+// Only covers PRIVATE methods that tests/ cannot reach:
+// get_by_index, delete_by_id, edit_unique_by_id, edit_by_id,
+// and Transaction's private edit_shared_field.
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::user::User;
+
+    fn setup() -> User {
+        User::new_in_memory("test").unwrap()
+    }
+
+    // ===== get_by_index (private) =====
+
+    #[test]
+    fn get_by_index_returns_correct_uuid() {
+        let user = setup();
+        user.add_group("Food").unwrap();
+        let groups = user.ls_group().unwrap();
+        let expected_id = groups[0].label.id;
+
+        let query = user.groups().unwrap();
+        assert_eq!(query.get_by_index(1).unwrap(), expected_id);
+    }
+
+    #[test]
+    fn get_by_index_out_of_range_errors() {
+        let user = setup();
+        user.add_group("Food").unwrap();
+        let query = user.groups().unwrap();
+        assert!(query.get_by_index(99).is_err());
+    }
+
+    #[test]
+    fn get_by_index_zero_errors() {
+        // no - 1 underflow guard: index 0 should error, not panic
+        let user = setup();
+        user.add_group("Food").unwrap();
+        let query = user.groups().unwrap();
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| query.get_by_index(0)));
+        match result {
+            Ok(r) => assert!(r.is_err(), "index 0 should return an error, not Ok"),
+            Err(_) => panic!(
+                "get_by_index(0) panicked instead of returning an error (likely usize underflow on `no - 1`)"
+            ),
+        }
+    }
+
+    // ===== delete_by_id (private) =====
+
+    #[test]
+    fn delete_by_id_removes_single_row() {
+        let user = setup();
+        user.add_group("Food").unwrap();
+        let id = user.get_group("Food").unwrap();
+
+        let query = user.groups().unwrap();
+        let query = query.delete_by_id(id, None).unwrap();
+        assert_eq!(query.rows.len(), 0);
+        assert_eq!(user.ls_group().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn delete_by_id_removes_linked_pair() {
+        let user = setup();
+        user.add_currency("MYR")
+            .unwrap()
+            .add_group("Transfer")
+            .unwrap()
+            .add_paired_category("Internal")
+            .unwrap()
+            .add_fund("Checking")
+            .unwrap()
+            .add_fund("Savings")
+            .unwrap();
+        user.add_paired_transaction(
+            "Move",
+            None,
+            (50000, "MYR"),
+            (50000, "MYR"),
+            (1, 6, 2026),
+            "Transfer",
+            "Internal",
+            "Checking",
+            "Savings",
+        )
+        .unwrap();
+
+        let transactions = user.ls_transaction().unwrap();
+        let id = transactions[0].label.id;
+        let link = transactions[0].link;
+
+        let query = user.transactions().unwrap();
+        let query = query.delete_by_id(id, link).unwrap();
+        assert_eq!(query.rows.len(), 0);
+        assert_eq!(user.ls_transaction().unwrap().len(), 0);
+    }
+
+    // ===== edit_unique_by_id (private) =====
+
+    #[test]
+    fn edit_unique_by_id_allows_renaming_to_same_name() {
+        let user = setup();
+        user.add_group("Food").unwrap();
+        let id = user.get_group("Food").unwrap();
+
+        let query = user.groups().unwrap();
+        let result = query.edit_unique_by_id(id, "Food", |conn, id| {
+            conn.execute(
+                "UPDATE groups SET name = ?1 WHERE id = ?2",
+                rusqlite::params!["Food", id],
+            )
+            .map(|_| ())
+        });
+        assert!(
+            result.is_ok(),
+            "renaming a row to its own current name should not be treated as a collision"
+        );
+    }
+
+    #[test]
+    fn edit_unique_by_id_blocks_collision_with_other_row() {
+        let user = setup();
+        user.add_group("Food").unwrap();
+        user.add_group("Housing").unwrap();
+        let food_id = user.get_group("Food").unwrap();
+
+        let query = user.groups().unwrap();
+        let result = query.edit_unique_by_id(food_id, "Housing", |conn, id| {
+            conn.execute(
+                "UPDATE groups SET name = ?1 WHERE id = ?2",
+                rusqlite::params!["Housing", id],
+            )
+            .map(|_| ())
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn edit_unique_by_id_allows_new_unused_name() {
+        let user = setup();
+        user.add_group("Food").unwrap();
+        let id = user.get_group("Food").unwrap();
+
+        let query = user.groups().unwrap();
+        let result = query.edit_unique_by_id(id, "Groceries", |conn, id| {
+            conn.execute(
+                "UPDATE groups SET name = ?1 WHERE id = ?2",
+                rusqlite::params!["Groceries", id],
+            )
+            .map(|_| ())
+        });
+        assert!(result.is_ok());
+        assert_eq!(user.ls_group().unwrap()[0].label.name, "Groceries");
+    }
+
+    // ===== edit_by_id (private) =====
+
+    #[test]
+    fn edit_by_id_applies_closure() {
+        let user = setup();
+        user.add_category("Groceries").unwrap();
+        let id = user.get_category("Groceries").unwrap();
+
+        let query = user.categories().unwrap();
+        let result = query.edit_by_id(id, |conn, id| {
+            conn.execute(
+                "UPDATE categories SET variant = ?1 WHERE id = ?2",
+                rusqlite::params![CategoryVariant::Paired, id],
+            )
+            .map(|_| ())
+        });
+        assert!(result.is_ok());
+        let refreshed = user.ls_category().unwrap();
+        assert_eq!(refreshed[0].variant, CategoryVariant::Paired);
+    }
+
+    // ===== Transaction::edit_shared_field (private) =====
+
+    #[test]
+    fn edit_shared_field_updates_single_row_when_unlinked() {
+        let user = setup();
+        user.add_currency("MYR")
+            .unwrap()
+            .add_group("Food")
+            .unwrap()
+            .add_category("Groceries")
+            .unwrap()
+            .add_fund("Checking")
+            .unwrap();
+        user.add_transaction(
+            "Lunch",
+            None,
+            (100, "MYR"),
+            (1, 6, 2026),
+            "Food",
+            "Groceries",
+            "Checking",
+        )
+        .unwrap();
+
+        let query = user.transactions().unwrap();
+        query
+            .edit_shared_field(1, "name", "Dinner".to_string())
+            .unwrap();
+
+        let refreshed = user.ls_transaction().unwrap();
+        assert_eq!(refreshed[0].label.name, "Dinner");
+    }
+
+    #[test]
+    fn edit_shared_field_updates_both_rows_when_paired() {
+        let user = setup();
+        user.add_currency("MYR")
+            .unwrap()
+            .add_group("Transfer")
+            .unwrap()
+            .add_paired_category("Internal")
+            .unwrap()
+            .add_fund("Checking")
+            .unwrap()
+            .add_fund("Savings")
+            .unwrap();
+        user.add_paired_transaction(
+            "Move",
+            None,
+            (50000, "MYR"),
+            (50000, "MYR"),
+            (1, 6, 2026),
+            "Transfer",
+            "Internal",
+            "Checking",
+            "Savings",
+        )
+        .unwrap();
+
+        let query = user.transactions().unwrap();
+        query
+            .edit_shared_field(1, "name", "Relocated".to_string())
+            .unwrap();
+
+        let refreshed = user.ls_transaction().unwrap();
+        assert!(
+            refreshed.iter().all(|t| t.label.name == "Relocated"),
+            "edit_shared_field should propagate to both halves of a paired transaction"
+        );
+    }
+
+    #[test]
+    fn edit_shared_field_invalid_index_errors() {
+        let user = setup();
+        user.add_currency("MYR")
+            .unwrap()
+            .add_group("Food")
+            .unwrap()
+            .add_category("Groceries")
+            .unwrap()
+            .add_fund("Checking")
+            .unwrap();
+
+        let query = user.transactions().unwrap(); // empty, no rows
+        let result = query.edit_shared_field(1, "name", "X".to_string());
+        assert!(result.is_err());
     }
 }

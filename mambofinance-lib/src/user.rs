@@ -579,26 +579,82 @@ pub enum UserError {
     SQL(#[from] rusqlite::Error),
 }
 
+// ============================================================
+// Only covers PRIVATE methods that tests/ cannot reach.
+// ============================================================
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Constructs an isolated sandbox instance using memory storage for testing routines.
     fn setup() -> User {
         User::new_in_memory("test").unwrap()
     }
 
+    // ===== ls_* (private) =====
+    // Thin sanity checks that ls_* correctly maps DB rows back to structs.
+    // Behavior of add_* itself is covered in tests/user_tests.rs via the public API.
+
     #[test]
-    fn add_group_persists() {
+    fn ls_group_maps_rows_correctly() {
         let user = setup();
         user.add_group("Food").unwrap();
-        let groups = user.ls_group().unwrap(); // private, accessible here
+        let groups = user.ls_group().unwrap();
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0].label.name, "Food");
     }
 
     #[test]
-    fn paired_transaction_links_cross_reference() {
+    fn ls_category_maps_variant_correctly() {
+        let user = setup();
+        user.add_category("Groceries").unwrap();
+        user.add_paired_category("Transfer").unwrap();
+        let categories = user.ls_category().unwrap();
+        assert_eq!(categories.len(), 2);
+        let groceries = categories
+            .iter()
+            .find(|c| c.label.name == "Groceries")
+            .unwrap();
+        let transfer = categories
+            .iter()
+            .find(|c| c.label.name == "Transfer")
+            .unwrap();
+        assert_eq!(groceries.variant, CategoryVariant::Single);
+        assert_eq!(transfer.variant, CategoryVariant::Paired);
+    }
+
+    #[test]
+    fn ls_transaction_joins_related_entities() {
+        let user = setup();
+        user.add_currency("MYR")
+            .unwrap()
+            .add_group("Food")
+            .unwrap()
+            .add_category("Groceries")
+            .unwrap()
+            .add_fund("Checking")
+            .unwrap();
+        user.add_transaction(
+            "Lunch",
+            None,
+            (1500, "MYR"),
+            (1, 6, 2026),
+            "Food",
+            "Groceries",
+            "Checking",
+        )
+        .unwrap();
+
+        let transactions = user.ls_transaction().unwrap();
+        assert_eq!(transactions.len(), 1);
+        assert_eq!(transactions[0].amount.currency.label.name, "MYR");
+        assert_eq!(transactions[0].group.label.name, "Food");
+        assert_eq!(transactions[0].category.label.name, "Groceries");
+        assert_eq!(transactions[0].fund.label.name, "Checking");
+    }
+
+    #[test]
+    fn ls_transaction_link_field_set_for_paired() {
         let user = setup();
         user.add_currency("MYR")
             .unwrap()
@@ -627,10 +683,75 @@ mod tests {
         assert_eq!(transactions.len(), 2);
         let ids: Vec<_> = transactions.iter().map(|t| t.label.id).collect();
         let links: Vec<_> = transactions.iter().map(|t| t.link.unwrap()).collect();
-
-        // Confirm mutual reference constraints match up cleanly across records
         assert!(ids.contains(&links[0]));
         assert!(ids.contains(&links[1]));
         assert_ne!(links[0], links[1]);
+    }
+
+    // ===== get_* / get_from_table (private) =====
+
+    #[test]
+    fn get_from_table_normalizes_input_formatting() {
+        let user = setup();
+        user.add_group("Food And Dining").unwrap();
+        // input casing/spacing should be normalized via Label::fmt before lookup
+        assert!(user.get_group("food and dining").is_ok());
+    }
+
+    #[test]
+    fn get_group_unknown_returns_no_rows_error() {
+        let user = setup();
+        let result = user.get_group("Nonexistent");
+        assert!(matches!(
+            result,
+            Err(UserError::SQL(rusqlite::Error::QueryReturnedNoRows))
+        ));
+    }
+
+    // ===== check_category_variant (private) =====
+
+    #[test]
+    fn check_category_variant_ok_when_matching() {
+        let user = setup();
+        user.add_category("Groceries").unwrap();
+        let id = user.get_category("Groceries").unwrap();
+        assert!(
+            user.check_category_variant(id, CategoryVariant::Single)
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn check_category_variant_errors_when_mismatched() {
+        let user = setup();
+        user.add_category("Groceries").unwrap();
+        let id = user.get_category("Groceries").unwrap();
+        assert!(
+            user.check_category_variant(id, CategoryVariant::Paired)
+                .is_err()
+        );
+    }
+
+    // ===== add_unique_to_table type-param regression guard =====
+    // This guards against the add_category::<Currency> bug specifically, since it's
+    // only detectable by inspecting which table the uniqueness check hits.
+
+    #[test]
+    fn add_category_duplicate_checked_against_categories_table_not_currencies() {
+        let user = setup();
+        // create a currency with the SAME name as a category we're about to add.
+        // if add_category's uniqueness check incorrectly queries `currencies`,
+        // this currency collision would wrongly block/short-circuit the category insert.
+        user.add_currency("Groceries").unwrap();
+        user.add_category("Groceries").unwrap();
+
+        let categories = user.ls_category().unwrap();
+        let currencies = user.ls_currency().unwrap();
+        assert_eq!(
+            categories.len(),
+            1,
+            "category insert should not be affected by a same-named currency"
+        );
+        assert_eq!(currencies.len(), 1);
     }
 }

@@ -1,3 +1,4 @@
 [workspace]
 resolver = "2"
 members = ["mambofinance-lib", "mambofinance-cli"]
+default-members = ["mambofinance-cli", "mambofinance-lib"]
