@@ -1,3 +1,4 @@
+// src/user.rs
 // Modules
 mod category;
 mod currency;
@@ -9,13 +10,13 @@ mod types;
 
 // Re-exports/Imports from internal modules
 pub use category::CategoryVariant;
-use category::*;
-use currency::*;
-use fund::*;
-use group::*;
-use query::*;
-use transaction::*;
-use types::*;
+pub(in crate::user) use category::*;
+pub(in crate::user) use currency::*;
+pub(in crate::user) use fund::*;
+pub(in crate::user) use group::*;
+pub use query::*;
+pub(in crate::user) use transaction::*;
+pub(in crate::user) use types::*;
 
 // External dependencies
 use rusqlite::{Connection, Result};

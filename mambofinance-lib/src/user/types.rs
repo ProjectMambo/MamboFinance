@@ -1,3 +1,4 @@
+// src/user/types.rs
 mod amount;
 mod date;
 mod label;
