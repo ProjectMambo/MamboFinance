@@ -2,6 +2,7 @@
 <p align="left">
   <img src="https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white" alt="Rust" />
   <img src="https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" />
+  <img src="https://img.shields.io/badge/Ratatui-FA5A5A?style=flat-square&logo=ratatui&logoColor=white" alt="Ratatui" />
 </p>
 <p align="left">
   <img src="https://img.shields.io/badge/Maintenance-Active-brightgreen?style=flat-square" />
