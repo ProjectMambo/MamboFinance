@@ -103,3 +103,309 @@ pub enum DateError {
     #[error("There's only {0} days in {1}")]
     InvalidDay(u8, String),
 }
+
+// region: Test
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    // region: Date::new
+
+    #[test]
+    fn new_accepts_a_valid_date() {
+        // Arrange
+        // Act
+        let result = Date::new(15, 6, 2026);
+
+        // Assert
+        assert!(result.is_ok());
+        let date = result.unwrap();
+        assert_eq!((date.day, date.month, date.year), (15, 6, 2026));
+    }
+
+    #[test]
+    fn new_rejects_month_above_twelve() {
+        // Arrange
+        // Act
+        let result = Date::new(1, 13, 2026);
+
+        // Assert
+        assert!(matches!(result, Err(DateError::InvalidMonth(13))));
+    }
+
+    #[test]
+    fn new_accepts_month_exactly_twelve() {
+        // Arrange
+        // Act
+        let result = Date::new(31, 12, 2026);
+
+        // Assert
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn new_rejects_day_exceeding_days_in_month() {
+        // Arrange
+        // Act
+        let result = Date::new(31, 4, 2026); // April has 30 days
+
+        // Assert
+        assert!(matches!(result, Err(DateError::InvalidDay(31, _))));
+    }
+
+    #[test]
+    fn new_accepts_february_29_on_leap_year() {
+        // Arrange
+        // Act
+        let result = Date::new(29, 2, 2024);
+
+        // Assert
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn new_rejects_february_29_on_non_leap_year() {
+        // Arrange
+        // Act
+        let result = Date::new(29, 2, 2025);
+
+        // Assert
+        assert!(matches!(result, Err(DateError::InvalidDay(29, _))));
+    }
+
+    #[test]
+    fn new_accepts_february_28_on_non_leap_year() {
+        // Arrange
+        // Act
+        let result = Date::new(28, 2, 2025);
+
+        // Assert
+        assert!(result.is_ok());
+    }
+
+    // endregion
+
+    // region: Date::from_row_offset
+
+    #[test]
+    fn from_row_offset_maps_day_month_year_columns() {
+        // Arrange
+        let conn = Connection::open_in_memory().expect("failed to open in-memory db");
+        conn.execute(
+            "CREATE TABLE dates (day INTEGER, month INTEGER, year INTEGER);",
+            (),
+        )
+        .expect("failed to create table");
+        conn.execute(
+            "INSERT INTO dates (day, month, year) VALUES (5, 9, 2026)",
+            (),
+        )
+        .expect("failed to insert row");
+
+        // Act
+        let date: Date = conn
+            .query_row("SELECT day, month, year FROM dates", (), |row| {
+                Date::from_row_offset(row, 0)
+            })
+            .expect("query should succeed");
+
+        // Assert
+        assert_eq!((date.day, date.month, date.year), (5, 9, 2026));
+    }
+
+    #[test]
+    fn from_row_offset_respects_a_nonzero_column_offset() {
+        // Arrange
+        let conn = Connection::open_in_memory().expect("failed to open in-memory db");
+        conn.execute(
+            "CREATE TABLE dates (padding INTEGER, day INTEGER, month INTEGER, year INTEGER);",
+            (),
+        )
+        .expect("failed to create table");
+        conn.execute(
+            "INSERT INTO dates (padding, day, month, year) VALUES (1, 5, 9, 2026)",
+            (),
+        )
+        .expect("failed to insert row");
+
+        // Act
+        let date: Date = conn
+            .query_row("SELECT padding, day, month, year FROM dates", (), |row| {
+                Date::from_row_offset(row, 1)
+            })
+            .expect("query should succeed");
+
+        // Assert
+        assert_eq!((date.day, date.month, date.year), (5, 9, 2026));
+    }
+
+    // endregion
+
+    // region: Date::is_leap_year
+
+    #[test]
+    fn is_leap_year_true_for_year_divisible_by_four() {
+        // Arrange
+        // Act
+        let result = Date::is_leap_year(2024);
+
+        // Assert
+        assert!(result);
+    }
+
+    #[test]
+    fn is_leap_year_false_for_year_not_divisible_by_four() {
+        // Arrange
+        // Act
+        let result = Date::is_leap_year(2025);
+
+        // Assert
+        assert!(!result);
+    }
+
+    #[test]
+    fn is_leap_year_false_for_century_year_not_divisible_by_400() {
+        // Arrange
+        // Act
+        let result = Date::is_leap_year(1900);
+
+        // Assert
+        assert!(!result);
+    }
+
+    #[test]
+    fn is_leap_year_true_for_century_year_divisible_by_400() {
+        // Arrange
+        // Act
+        let result = Date::is_leap_year(2000);
+
+        // Assert
+        assert!(result);
+    }
+
+    // endregion
+
+    // region: Display for Date
+
+    #[test]
+    fn display_formats_day_month_year_with_padding() {
+        // Arrange
+        let date = Date::new(1, 1, 2026).expect("valid date");
+
+        // Act
+        let rendered = format!("{}", date);
+
+        // Assert
+        assert_eq!(rendered, "01-JAN-2026");
+    }
+
+    #[test]
+    fn display_formats_double_digit_day_correctly() {
+        // Arrange
+        let date = Date::new(25, 12, 2026).expect("valid date");
+
+        // Act
+        let rendered = format!("{}", date);
+
+        // Assert
+        assert_eq!(rendered, "25-DEC-2026");
+    }
+
+    // endregion
+
+    // region: PartialEq / Eq for Date
+
+    #[test]
+    fn equality_holds_for_identical_dates() {
+        // Arrange
+        let a = Date::new(1, 1, 2026).unwrap();
+        let b = Date::new(1, 1, 2026).unwrap();
+
+        // Act
+        let is_equal = a == b;
+
+        // Assert
+        assert!(is_equal);
+    }
+
+    #[test]
+    fn equality_fails_for_different_days() {
+        // Arrange
+        let a = Date::new(1, 1, 2026).unwrap();
+        let b = Date::new(2, 1, 2026).unwrap();
+
+        // Act
+        let is_equal = a == b;
+
+        // Assert
+        assert!(!is_equal);
+    }
+
+    // endregion
+
+    // region: Ord / PartialOrd for Date
+
+    #[test]
+    fn ordering_compares_by_year_first() {
+        // Arrange
+        let earlier = Date::new(31, 12, 2025).unwrap();
+        let later = Date::new(1, 1, 2026).unwrap();
+
+        // Act
+        let is_earlier_less = earlier < later;
+
+        // Assert
+        assert!(is_earlier_less);
+    }
+
+    #[test]
+    fn ordering_compares_by_month_when_year_matches() {
+        // Arrange
+        let earlier = Date::new(28, 1, 2026).unwrap();
+        let later = Date::new(1, 2, 2026).unwrap();
+
+        // Act
+        let is_earlier_less = earlier < later;
+
+        // Assert
+        assert!(is_earlier_less);
+    }
+
+    #[test]
+    fn ordering_compares_by_day_when_year_and_month_match() {
+        // Arrange
+        let earlier = Date::new(1, 6, 2026).unwrap();
+        let later = Date::new(2, 6, 2026).unwrap();
+
+        // Act
+        let is_earlier_less = earlier < later;
+
+        // Assert
+        assert!(is_earlier_less);
+    }
+
+    #[test]
+    fn ordering_sorts_a_vec_of_dates_chronologically() {
+        // Arrange
+        let mut dates = [
+            Date::new(15, 6, 2026).unwrap(),
+            Date::new(1, 1, 2025).unwrap(),
+            Date::new(1, 1, 2026).unwrap(),
+        ];
+
+        // Act
+        dates.sort();
+
+        // Assert
+        assert_eq!(
+            dates.iter().map(|d| d.year).collect::<Vec<_>>(),
+            vec![2025, 2026, 2026]
+        );
+    }
+
+    // endregion
+}
+
+// endregion

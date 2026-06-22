@@ -1,11 +1,12 @@
 // Imports from internal user module
-use crate::user::{HasLabel, Label, Printable};
+use crate::user::{HasLabel, Label};
 use std::fmt::{Display, Formatter};
 
 /// Represents a structural category classification used to organize ledger operations.
 #[derive(Clone)]
 pub struct Group {
     pub label: Label,
+    pub count: usize,
 }
 
 impl Group {
@@ -20,6 +21,7 @@ impl Group {
     pub fn from_row_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Self> {
         Ok(Group {
             label: Label::from_row_offset_no_desc(row, offset)?,
+            count: row.get::<_, i64>(offset + 2)? as usize,
         })
     }
 }
@@ -41,8 +43,159 @@ impl HasLabel for Group {
     }
 }
 
-impl Printable for Group {
-    fn title() -> &'static str {
-        "GROUP"
+// region: Test
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    // region: helpers
+
+    // Builds an in-memory connection seeded with a single group-shaped row
+    // (id, name, transaction_count) to exercise the row-mapping constructors.
+    fn connection_with_group_row(name: &str, count: i64) -> Connection {
+        let conn = Connection::open_in_memory().expect("failed to open in-memory db");
+        conn.execute(
+            "CREATE TABLE groups (id BLOB PRIMARY KEY, name TEXT, transaction_count INTEGER);",
+            (),
+        )
+        .expect("failed to create table");
+
+        let id = uuid::Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO groups (id, name, transaction_count) VALUES (?1, ?2, ?3)",
+            rusqlite::params![id, name, count],
+        )
+        .expect("failed to insert row");
+
+        conn
     }
+
+    // endregion
+
+    // region: Group::from_row
+
+    #[test]
+    fn from_row_maps_name_and_count() {
+        // Arrange
+        let conn = connection_with_group_row("Personal", 7);
+
+        // Act
+        let group: Group = conn
+            .query_row(
+                "SELECT id, name, transaction_count FROM groups",
+                (),
+                Group::from_row,
+            )
+            .expect("query should succeed");
+
+        // Assert
+        assert_eq!(group.label.name, "Personal");
+        assert_eq!(group.count, 7);
+    }
+
+    #[test]
+    fn from_row_does_not_populate_description() {
+        // Arrange
+        let conn = connection_with_group_row("Personal", 0);
+
+        // Act
+        let group: Group = conn
+            .query_row(
+                "SELECT id, name, transaction_count FROM groups",
+                (),
+                Group::from_row,
+            )
+            .expect("query should succeed");
+
+        // Assert
+        assert_eq!(group.label.description, None);
+    }
+
+    // endregion
+
+    // region: Group::from_row_offset
+
+    #[test]
+    fn from_row_offset_respects_a_nonzero_column_offset() {
+        // Arrange
+        let conn = Connection::open_in_memory().expect("failed to open in-memory db");
+        conn.execute(
+            "CREATE TABLE groups (padding INTEGER, id BLOB, name TEXT, transaction_count INTEGER);",
+            (),
+        )
+        .expect("failed to create table");
+        let id = uuid::Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO groups (padding, id, name, transaction_count) VALUES (1, ?1, ?2, ?3)",
+            rusqlite::params![id, "Business", 2i64],
+        )
+        .expect("failed to insert row");
+
+        // Act
+        let group: Group = conn
+            .query_row(
+                "SELECT padding, id, name, transaction_count FROM groups",
+                (),
+                |row| Group::from_row_offset(row, 1),
+            )
+            .expect("query should succeed");
+
+        // Assert
+        assert_eq!(group.label.name, "Business");
+        assert_eq!(group.count, 2);
+    }
+
+    // endregion
+
+    // region: Display for Group
+
+    #[test]
+    fn display_delegates_to_underlying_label_format() {
+        // Arrange
+        let group = Group {
+            label: Label::new("Personal", None),
+            count: 0,
+        };
+
+        // Act
+        let rendered = format!("{}", group);
+
+        // Assert
+        assert_eq!(rendered, format!("{}", group.label));
+    }
+
+    // endregion
+
+    // region: HasLabel for Group
+
+    #[test]
+    fn has_label_label_returns_the_underlying_label() {
+        // Arrange
+        let group = Group {
+            label: Label::new("Personal", None),
+            count: 0,
+        };
+
+        // Act
+        let label_ref = group.label();
+
+        // Assert
+        assert_eq!(label_ref.name, "Personal");
+    }
+
+    #[test]
+    fn has_label_table_returns_groups() {
+        // Arrange
+        // Act
+        let table = Group::table();
+
+        // Assert
+        assert_eq!(table, "groups");
+    }
+
+    // endregion
 }
+
+// endregion
