@@ -1,11 +1,13 @@
 // Imports from internal user module
-use crate::user::{HasLabel, Label};
+use crate::user::{Flattenable, HasLabel, Label};
 use std::fmt::{Display, Formatter};
 
 /// Represents an asset storage account or location (e.g., Cash, Bank, Savings) within the system.
 #[derive(Clone)]
 pub struct Fund {
+    /// Associated metadata label containing name information.
     pub label: Label,
+    /// Historical count of transaction assignments.
     pub count: usize,
 }
 
@@ -34,12 +36,21 @@ impl Display for Fund {
 }
 
 impl HasLabel for Fund {
+    /// Returns a reference to the underlying structural `Label`.
     fn label(&self) -> &Label {
         &self.label
     }
 
+    /// Declares the corresponding database source table identifier string.
     fn table() -> &'static str {
         "funds"
+    }
+}
+
+impl Flattenable for Fund {
+    /// Flattens categorical tracking vectors into raw field vector elements.
+    fn flatten(&self) -> Vec<String> {
+        vec![self.label.to_string()]
     }
 }
 
@@ -52,8 +63,7 @@ mod tests {
 
     // region: helpers
 
-    // Builds an in-memory connection seeded with a single fund-shaped row
-    // (id, name, transaction_count) to exercise the row-mapping constructors.
+    /// Builds an in-memory connection seeded with a single fund-shaped row to exercise the row-mapping constructors.
     fn connection_with_fund_row(name: &str, count: i64) -> Connection {
         let conn = Connection::open_in_memory().expect("failed to open in-memory db");
         conn.execute(
@@ -76,6 +86,7 @@ mod tests {
 
     // region: Fund::from_row
 
+    /// Verifies that standard row translation parses field names and tracking allocations accurately.
     #[test]
     fn from_row_maps_name_and_count() {
         // Arrange
@@ -95,6 +106,7 @@ mod tests {
         assert_eq!(fund.count, 3);
     }
 
+    /// Verifies that record parsing tracks optional descriptions as default empty elements.
     #[test]
     fn from_row_does_not_populate_description() {
         // Arrange
@@ -117,6 +129,7 @@ mod tests {
 
     // region: Fund::from_row_offset
 
+    /// Verifies row extraction processes tracking fields accurately given a leading database column offset index.
     #[test]
     fn from_row_offset_respects_a_nonzero_column_offset() {
         // Arrange
@@ -151,6 +164,7 @@ mod tests {
 
     // region: Display for Fund
 
+    /// Verifies that standard formatting strings cleanly map down to nested property blocks.
     #[test]
     fn display_delegates_to_underlying_label_format() {
         // Arrange
@@ -170,6 +184,7 @@ mod tests {
 
     // region: HasLabel for Fund
 
+    /// Verifies trait signatures route accurately to internal label properties.
     #[test]
     fn has_label_label_returns_the_underlying_label() {
         // Arrange
@@ -185,10 +200,10 @@ mod tests {
         assert_eq!(label_ref.name, "Cash");
     }
 
+    /// Verifies trait mappings match the designated collection target labels.
     #[test]
     fn has_label_table_returns_funds() {
-        // Arrange
-        // Act
+        // Arrange & Act
         let table = Fund::table();
 
         // Assert

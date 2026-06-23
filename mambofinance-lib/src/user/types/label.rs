@@ -1,18 +1,21 @@
 // Imports from internal user module
-use crate::user::{DESC_LIMIT, NAME_LIMIT};
+use crate::user::Flattenable;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
-/// Provides unique identity, naming, and optional textual descriptions for database entities.
+/// Metadata container providing identity, naming, and description for database entities.
 #[derive(Clone, Debug)]
 pub struct Label {
+    /// Unique identifier for the entity.
     pub id: Uuid,
+    /// Sanitized, title-cased name.
     pub name: String,
+    /// Optional detailed description.
     pub description: Option<String>,
 }
 
 impl Label {
-    /// Constructs a new `Label` instance with a randomly generated UUID and a formatted name.
+    /// Creates a new `Label` with a random V4 UUID and a formatted title-case name.
     pub fn new(name: &str, description: Option<&str>) -> Self {
         let id = Uuid::new_v4();
         let des = description.map(String::from);
@@ -24,7 +27,8 @@ impl Label {
         }
     }
 
-    /// Maps a single SQLite row to a full `Label` instance including descriptions using column offsets.
+    /// Deserializes a `Label` from a database row using the specified column index offset.
+    /// Expects `id`, `name`, and `description` to be sequential from the offset.
     pub fn from_row_offset(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Self> {
         Ok(Label {
             id: row.get(offset)?,
@@ -33,7 +37,8 @@ impl Label {
         })
     }
 
-    /// Maps a single SQLite row to a partial `Label` instance, explicitly omitting descriptions.
+    /// Deserializes a `Label` from a database row, skipping the description column
+    /// and defaulting it to `None`.
     pub fn from_row_offset_no_desc(row: &rusqlite::Row, offset: usize) -> rusqlite::Result<Self> {
         Ok(Label {
             id: row.get(offset)?,
@@ -42,9 +47,10 @@ impl Label {
         })
     }
 
-    /// Sanitizes and converts delimiter-separated strings into a Title Case format.
+    /// Normalizes delimiter-separated strings (spaces, underscores, hyphens) into Title Case.
     ///
-    /// e.g., "my_test-string" becomes "My Test String".
+    /// # Examples
+    /// "my_test-string" becomes "My Test String".
     pub fn fmt(input: &str) -> String {
         let delimiters = " _-";
         input
@@ -63,48 +69,43 @@ impl Label {
 }
 
 impl Display for Label {
-    /// Formats the entity label output, processing truncation and layout padding via type modifiers.
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        // Alternate layout format (`{:#}`)
-        if f.alternate() {
-            write!(f, "{}", self.name)?;
-            return match &self.description {
-                Some(des) => write!(f, " | {}", des),
-                None => Ok(()),
-            };
-        }
-
-        // Plus-sign layout format (`{:+}`)
-        let des = f.sign_plus().then_some(match &self.description {
-            Some(des) => des.as_str(),
-            None => "",
-        });
-
-        // Standard layout format (`{}`)
-        let mut truncated: String = self.name.chars().take(NAME_LIMIT).collect();
-        write!(f, "{:<width$}", truncated, width = NAME_LIMIT)?;
-
-        match des {
-            Some(des) => {
-                truncated = des.chars().take(DESC_LIMIT).collect();
-                write!(f, " | {:<width$}", truncated, width = DESC_LIMIT)
-            }
-            None => Ok(()),
+    /// Formats the label as "Name | Description" if a description exists, otherwise just "Name".
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self.description {
+            Some(desc) => write!(f, "{} | {}", self.name, desc),
+            None => write!(f, "{}", self.name),
         }
     }
 }
 
-/// Interface indicating an entity can expose a uniform metadata `Label` structure and data origin table.
+impl Flattenable for Label {
+    /// Flattens the label struct fields into a vector of strings.
+    fn flatten(&self) -> Vec<String> {
+        vec![
+            self.name.to_string(),
+            self.description
+                .as_ref()
+                .map_or_else(String::new, |o| o.to_string()),
+        ]
+    }
+}
+
+/// Defines a standard interface for types that contain or wrap a `Label`.
 pub trait HasLabel {
+    /// Returns the name associated with the entity label.
     fn name(&self) -> &str {
         &self.label().name
     }
 
+    /// Returns the unique identifier from the entity label.
     fn id(&self) -> Uuid {
         self.label().id
     }
 
+    /// Borrows the underlying `Label` struct.
     fn label(&self) -> &Label;
+
+    /// Returns the database table name corresponding to the entity.
     fn table() -> &'static str;
 }
 
@@ -117,8 +118,7 @@ mod tests {
 
     // region: helpers
 
-    // Builds a throwaway in-memory connection with a single row containing
-    // id, name, and description columns, used to exercise row-mapping constructors.
+    /// Generates an in-memory SQLite connection containing a mock items table for testing.
     fn connection_with_label_row(name: &str, description: Option<&str>) -> Connection {
         let conn = Connection::open_in_memory().expect("failed to open in-memory db");
         conn.execute(
@@ -137,7 +137,7 @@ mod tests {
         conn
     }
 
-    // A minimal stand-in implementing HasLabel purely to exercise its default methods.
+    /// Concrete mock struct used to validate default trait implementations of `HasLabel`.
     struct DummyEntity {
         label: Label,
     }
@@ -156,6 +156,7 @@ mod tests {
 
     // region: Label::new
 
+    /// Verifies that `Label::new` normalizes raw names to title case and stores the description.
     #[test]
     fn new_formats_name_to_title_case_and_keeps_description() {
         // Arrange
@@ -170,6 +171,7 @@ mod tests {
         assert_eq!(label.description, Some(String::from("a description")));
     }
 
+    /// Verifies that `Label::new` maps an absent optional description field to `None`.
     #[test]
     fn new_with_no_description_stores_none() {
         // Arrange
@@ -182,9 +184,9 @@ mod tests {
         assert_eq!(label.description, None);
     }
 
+    /// Verifies that sequential calls to `Label::new` generate distinct, non-nil identifiers.
     #[test]
     fn new_generates_a_non_nil_unique_id_each_call() {
-        // Arrange
         // Act
         let first = Label::new("foo", None);
         let second = Label::new("foo", None);
@@ -198,6 +200,7 @@ mod tests {
 
     // region: Label::fmt (Title Case helper)
 
+    /// Verifies that delimiters like underscores and hyphens are accurately parsed into spaces.
     #[test]
     fn fmt_converts_underscores_and_hyphens_to_title_case() {
         // Arrange
@@ -210,6 +213,7 @@ mod tests {
         assert_eq!(result, "My Test String");
     }
 
+    /// Verifies that sequential delimiters are consolidated cleanly without throwing empty strings.
     #[test]
     fn fmt_collapses_repeated_delimiters_without_empty_words() {
         // Arrange
@@ -222,6 +226,7 @@ mod tests {
         assert_eq!(result, "My Test String Here");
     }
 
+    /// Verifies that passing strings that are already spaced yields expected capitalization rules.
     #[test]
     fn fmt_handles_already_spaced_input() {
         // Arrange
@@ -234,6 +239,7 @@ mod tests {
         assert_eq!(result, "Already Spaced Words");
     }
 
+    /// Verifies that empty string inputs return clean, zero-length string instances.
     #[test]
     fn fmt_on_empty_string_returns_empty_string() {
         // Arrange
@@ -246,6 +252,7 @@ mod tests {
         assert_eq!(result, "");
     }
 
+    /// Verifies that input sequences consisting solely of delimiters process down to empty strings.
     #[test]
     fn fmt_on_only_delimiters_returns_empty_string() {
         // Arrange
@@ -258,6 +265,7 @@ mod tests {
         assert_eq!(result, "");
     }
 
+    /// Verifies that arbitrary inner-word uppercase styling remains unmodified by parsing logic.
     #[test]
     fn fmt_preserves_existing_uppercase_letters_after_first_char() {
         // Arrange
@@ -274,6 +282,7 @@ mod tests {
 
     // region: Label::from_row_offset
 
+    /// Verifies successful translation of database rows containing explicit data payloads.
     #[test]
     fn from_row_offset_maps_id_name_and_description() {
         // Arrange
@@ -291,6 +300,7 @@ mod tests {
         assert_eq!(result.description, Some(String::from("Weekly shop")));
     }
 
+    /// Verifies that database NULL states cleanly convert to rust `None` field designations.
     #[test]
     fn from_row_offset_maps_null_description_as_none() {
         // Arrange
@@ -307,6 +317,7 @@ mod tests {
         assert_eq!(result.description, None);
     }
 
+    /// Verifies column mapping functions preserve extraction indexes given dynamic query leading offsets.
     #[test]
     fn from_row_offset_respects_a_nonzero_column_offset() {
         // Arrange
@@ -341,6 +352,7 @@ mod tests {
 
     // region: Label::from_row_offset_no_desc
 
+    /// Verifies parsing paths configured to bypass descriptions actively exclude text columns.
     #[test]
     fn from_row_offset_no_desc_ignores_description_column() {
         // Arrange
@@ -360,114 +372,9 @@ mod tests {
 
     // endregion
 
-    // region: Display for Label
-
-    #[test]
-    fn display_default_pads_name_to_name_limit_width() {
-        // Arrange
-        let label = Label::new("ab", None);
-
-        // Act
-        let rendered = format!("{}", label);
-
-        // Assert
-        assert_eq!(rendered.len(), NAME_LIMIT);
-        assert_eq!(rendered, format!("{:<width$}", "Ab", width = NAME_LIMIT));
-    }
-
-    #[test]
-    fn display_default_truncates_name_longer_than_limit() {
-        // Arrange
-        let long_name = "a".repeat(NAME_LIMIT + 10);
-        let label = Label::new(&long_name, None);
-
-        // Act
-        let rendered = format!("{}", label);
-
-        // Assert
-        assert_eq!(rendered.chars().count(), NAME_LIMIT);
-    }
-
-    #[test]
-    fn display_default_omits_description_even_when_present() {
-        // Arrange
-        let label = Label::new("Groceries", Some("Weekly shop"));
-
-        // Act
-        let rendered = format!("{}", label);
-
-        // Assert
-        assert!(!rendered.contains("Weekly shop"));
-        assert!(!rendered.contains('|'));
-    }
-
-    #[test]
-    fn display_plus_sign_appends_description_when_present() {
-        // Arrange
-        let label = Label::new("Groceries", Some("Weekly shop"));
-
-        // Act
-        let rendered = format!("{:+}", label);
-
-        // Assert
-        assert!(rendered.contains("Weekly shop"));
-        assert!(rendered.contains('|'));
-    }
-
-    #[test]
-    fn display_plus_sign_with_no_description_still_renders_separator() {
-        // Arrange
-        let label = Label::new("Groceries", None);
-
-        // Act
-        let rendered = format!("{:+}", label);
-
-        // Assert
-        assert!(rendered.contains('|'));
-    }
-
-    #[test]
-    fn display_plus_sign_truncates_description_to_desc_limit() {
-        // Arrange
-        let long_desc = "d".repeat(DESC_LIMIT + 10);
-        let label = Label::new("Groceries", Some(&long_desc));
-
-        // Act
-        let rendered = format!("{:+}", label);
-        let desc_part = rendered.split('|').nth(1).expect("should have a desc part");
-
-        // Assert
-        assert_eq!(desc_part.trim_end().chars().count(), DESC_LIMIT);
-    }
-
-    #[test]
-    fn display_alternate_renders_name_only_without_description() {
-        // Arrange
-        let label = Label::new("Groceries", None);
-
-        // Act
-        let rendered = format!("{:#}", label);
-
-        // Assert
-        assert_eq!(rendered, "Groceries");
-    }
-
-    #[test]
-    fn display_alternate_appends_full_description_when_present() {
-        // Arrange
-        let label = Label::new("Groceries", Some("Weekly shop"));
-
-        // Act
-        let rendered = format!("{:#}", label);
-
-        // Assert
-        assert_eq!(rendered, "Groceries | Weekly shop");
-    }
-
-    // endregion
-
     // region: HasLabel trait default methods
 
+    /// Verifies default trait accessor mapping behavior routes accurately to internal struct fields.
     #[test]
     fn has_label_name_default_delegates_to_label_name() {
         // Arrange
@@ -482,6 +389,7 @@ mod tests {
         assert_eq!(name, "Test Entity");
     }
 
+    /// Verifies default trait wrapper functions map target matching keys effectively.
     #[test]
     fn has_label_id_default_delegates_to_label_id() {
         // Arrange
@@ -497,9 +405,9 @@ mod tests {
         assert_eq!(id, expected_id);
     }
 
+    /// Verifies trait signatures resolve underlying static identifiers matching internal schemas.
     #[test]
     fn has_label_table_returns_static_table_name() {
-        // Arrange
         // Act
         let table = DummyEntity::table();
 

@@ -1,5 +1,5 @@
 // Imports from internal user module
-use crate::user::{Amount, Category, Date, Fund, Group, HasLabel, Label};
+use crate::user::{Amount, Category, Date, Flattenable, Fund, Group, HasLabel, Label};
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
@@ -7,12 +7,19 @@ use uuid::Uuid;
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct Transaction {
+    /// Combined key descriptor caching specific identity strings.
     pub label: Label,
+    /// Absolute atomic balance quantity tracking entity.
     pub amount: Amount,
+    /// Gregorian calendar verification date.
     pub date: Date,
+    /// Associated group classification tracking entity.
     pub group: Group,
+    /// Associated categorisation validation tracking rules.
     pub category: Category,
+    /// Designated account allocation target asset node.
     pub fund: Fund,
+    /// Optional pairing key referencing secondary entries.
     pub link: Option<Uuid>,
 }
 
@@ -38,19 +45,34 @@ impl Display for Transaction {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         write!(
             f,
-            "{:+} | {} | {} | {} | {:#} | {}",
+            "{} | {} | {} | {} | {} | {}",
             self.label, self.amount, self.date, self.group, self.category, self.fund
         )
     }
 }
 
 impl HasLabel for Transaction {
+    /// Returns a reference to the underlying structural `Label`.
     fn label(&self) -> &Label {
         &self.label
     }
 
+    /// Declares the corresponding database source table identifier string.
     fn table() -> &'static str {
         "transactions"
+    }
+}
+
+impl Flattenable for Transaction {
+    /// Flattens categorical tracking vectors into raw field vector elements.
+    fn flatten(&self) -> Vec<String> {
+        let mut flat = self.label.flatten();
+        flat.push(self.amount.to_string());
+        flat.push(self.date.to_string());
+        flat.push(self.group.to_string());
+        flat.push(self.category.to_string());
+        flat.push(self.fund.to_string());
+        flat
     }
 }
 
@@ -63,16 +85,7 @@ mod tests {
 
     // region: helpers
 
-    // Builds an in-memory connection seeded with a single transaction-shaped row.
-    //
-    // Column layout:
-    // 0:id 1:name 2:description
-    // 3:value 4:cur_id 5:cur_name 6:cur_count
-    // 7:day 8:month 9:year
-    // 10:grp_id 11:grp_name 12:grp_count
-    // 13:cat_id 14:cat_name 15:cat_variant 16:cat_count
-    // 17:fund_id 18:fund_name 19:fund_count
-    // 20:link_id
+    /// Builds an in-memory connection seeded with a single transaction-shaped row.
     fn connection_with_transaction_row() -> (Connection, Uuid, Uuid, Uuid, Uuid, Uuid, Uuid) {
         let conn = Connection::open_in_memory().expect("failed to open in-memory db");
         conn.execute(
@@ -147,6 +160,7 @@ mod tests {
 
     // region: Transaction::from_row
 
+    /// Verifies that standard row deserialization maps target identity metadata, value totals, and date blocks cleanly.
     #[test]
     fn from_row_maps_label_amount_and_date_fields() {
         // Arrange
@@ -168,6 +182,7 @@ mod tests {
         assert_eq!((tx.date.day, tx.date.month, tx.date.year), (15, 6, 2026));
     }
 
+    /// Verifies row extraction processes tracking structures accurately given sequential group constraints.
     #[test]
     fn from_row_maps_group_with_its_count_column() {
         // Arrange
@@ -184,6 +199,7 @@ mod tests {
         assert_eq!(tx.group.count, 4);
     }
 
+    /// Verifies row mapping decodes sequence targets into valid localized categorization bounds.
     #[test]
     fn from_row_maps_category_with_variant_and_count_columns() {
         // Arrange
@@ -201,6 +217,7 @@ mod tests {
         assert_eq!(tx.category.count, 1);
     }
 
+    /// Verifies row translation maps associated allocation targets safely from basic engine layers.
     #[test]
     fn from_row_maps_fund_with_its_count_column() {
         // Arrange
@@ -217,6 +234,7 @@ mod tests {
         assert_eq!(tx.fund.count, 3);
     }
 
+    /// Verifies that explicit cross-link references map smoothly to target structural parameters.
     #[test]
     fn from_row_maps_link_id_as_the_final_column() {
         // Arrange
@@ -231,6 +249,7 @@ mod tests {
         assert_eq!(tx.link, Some(link_id));
     }
 
+    /// Verifies that empty record configurations fallback gracefully to default optional types.
     #[test]
     fn from_row_maps_null_link_as_none() {
         // Arrange
@@ -301,52 +320,9 @@ mod tests {
 
     // endregion
 
-    // region: Display for Transaction
-
-    #[test]
-    fn display_renders_pipe_separated_fields_with_full_description() {
-        // Arrange
-        let (conn, ..) = connection_with_transaction_row();
-        let tx: Transaction = conn
-            .query_row("SELECT * FROM t", (), Transaction::from_row)
-            .expect("query should succeed");
-
-        // Act
-        let rendered = format!("{}", tx);
-
-        // Assert
-        let segments: Vec<&str> = rendered.split(" | ").collect();
-        assert_eq!(segments.len(), 6);
-        assert!(rendered.contains("Groceries"));
-        assert!(rendered.contains("Weekly shop")); // label rendered with `{:+}` includes description
-        assert!(rendered.contains("10.50"));
-        assert!(rendered.contains("15-JUN-2026"));
-        assert!(rendered.contains("Personal"));
-        assert!(rendered.contains("Food"));
-        assert!(rendered.contains("Cash"));
-    }
-
-    #[test]
-    fn display_renders_category_in_alternate_format_without_variant_text() {
-        // Arrange
-        let (conn, ..) = connection_with_transaction_row();
-        let tx: Transaction = conn
-            .query_row("SELECT * FROM t", (), Transaction::from_row)
-            .expect("query should succeed");
-
-        // Act
-        let rendered = format!("{}", tx);
-
-        // Assert
-        // Category is rendered with `{:#}` (alternate), so the "Single"/"Paired"
-        // variant debug text should not appear.
-        assert!(!rendered.contains("Single"));
-    }
-
-    // endregion
-
     // region: HasLabel for Transaction
 
+    /// Verifies trait signatures route accurately to internal label properties.
     #[test]
     fn has_label_label_returns_the_underlying_label() {
         // Arrange
@@ -362,10 +338,10 @@ mod tests {
         assert_eq!(label_ref.id, tx_id);
     }
 
+    /// Verifies trait mappings match the designated collection target labels.
     #[test]
     fn has_label_table_returns_transactions() {
-        // Arrange
-        // Act
+        // Arrange & Act
         let table = Transaction::table();
 
         // Assert

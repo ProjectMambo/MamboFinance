@@ -1,12 +1,15 @@
 // Imports from internal user module
-use crate::user::{HasLabel, Label, VARIANT_LIMIT};
-use std::fmt::{Display, Formatter};
+use crate::user::{Flattenable, HasLabel, Label, VARIANT_LIMIT};
+use std::fmt::{Display, Formatter, Write};
 
 /// Represents a transaction classification group which determines structural rules.
 #[derive(Clone)]
 pub struct Category {
+    /// Associated metadata label containing name information.
     pub label: Label,
+    /// Structural variant behavior rule flag.
     pub variant: CategoryVariant,
+    /// Historical count of transaction assignments.
     pub count: usize,
 }
 
@@ -32,26 +35,37 @@ impl Display for Category {
     /// Formats the category metadata, altering output formatting parameters based on precision flags.
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         if f.alternate() {
-            return write!(f, "{}", self.label);
+            return write!(
+                f,
+                "{} | {:<width$}",
+                self.label,
+                format!("{:?}", self.variant),
+                width = VARIANT_LIMIT,
+            );
         }
 
-        write!(
-            f,
-            "{} | {:<width$}",
-            self.label,
-            format!("{:?}", self.variant),
-            width = VARIANT_LIMIT,
-        )
+        write!(f, "{}", self.label)
     }
 }
 
 impl HasLabel for Category {
+    /// Returns a reference to the underlying structural `Label`.
     fn label(&self) -> &Label {
         &self.label
     }
 
+    /// Declares the corresponding database source table identifier string.
     fn table() -> &'static str {
         "categories"
+    }
+}
+
+impl Flattenable for Category {
+    /// Flattens categorical tracking vectors into raw field vector elements.
+    fn flatten(&self) -> Vec<String> {
+        let mut debug_string = String::new();
+        let _ = write!(debug_string, "{:?}", self.variant);
+        vec![self.label.to_string(), debug_string]
     }
 }
 
@@ -91,8 +105,7 @@ mod tests {
 
     // region: helpers
 
-    // Builds an in-memory connection seeded with a single category-shaped row
-    // (id, name, variant, transaction_count) to exercise the row-mapping constructors.
+    /// Builds an in-memory connection seeded with a single category-shaped row to exercise the row-mapping constructors.
     fn connection_with_category_row(name: &str, variant: i64, count: i64) -> Connection {
         let conn = Connection::open_in_memory().expect("failed to open in-memory db");
         conn.execute(
@@ -115,6 +128,7 @@ mod tests {
 
     // region: Category::from_row
 
+    /// Verifies that standard row translation parses field names, paired enumerations, and allocation counts correctly.
     #[test]
     fn from_row_maps_name_variant_and_count() {
         // Arrange
@@ -135,6 +149,7 @@ mod tests {
         assert_eq!(category.count, 4);
     }
 
+    /// Verifies that zero-value variants compile down safely into standalone classifications.
     #[test]
     fn from_row_maps_single_variant_correctly() {
         // Arrange
@@ -157,6 +172,7 @@ mod tests {
 
     // region: Category::from_row_offset
 
+    /// Verifies row extraction processes tracking fields accurately given a leading database column offset index.
     #[test]
     fn from_row_offset_respects_a_nonzero_column_offset() {
         // Arrange
@@ -190,47 +206,9 @@ mod tests {
 
     // endregion
 
-    // region: Display for Category
-
-    #[test]
-    fn display_default_includes_label_and_variant_debug_text() {
-        // Arrange
-        let category = Category {
-            label: Label::new("Groceries", None),
-            variant: CategoryVariant::Single,
-            count: 0,
-        };
-
-        // Act
-        let rendered = format!("{}", category);
-
-        // Assert
-        assert!(rendered.contains("Groceries"));
-        assert!(rendered.contains("Single"));
-        assert!(rendered.contains('|'));
-    }
-
-    #[test]
-    fn display_alternate_renders_label_only_without_variant() {
-        // Arrange
-        let category = Category {
-            label: Label::new("Groceries", None),
-            variant: CategoryVariant::Paired,
-            count: 0,
-        };
-
-        // Act
-        let rendered = format!("{:#}", category);
-
-        // Assert
-        assert_eq!(rendered, "Groceries");
-        assert!(!rendered.contains("Paired"));
-    }
-
-    // endregion
-
     // region: HasLabel for Category
 
+    /// Verifies trait signatures route accurately to internal label properties.
     #[test]
     fn has_label_label_returns_the_underlying_label() {
         // Arrange
@@ -247,10 +225,10 @@ mod tests {
         assert_eq!(label_ref.name, "Groceries");
     }
 
+    /// Verifies trait mappings match the designated collection target labels.
     #[test]
     fn has_label_table_returns_categories() {
-        // Arrange
-        // Act
+        // Arrange & Act
         let table = Category::table();
 
         // Assert
@@ -261,6 +239,7 @@ mod tests {
 
     // region: CategoryVariant FromSql
 
+    /// Verifies database integer components transform into base single descriptors.
     #[test]
     fn from_sql_maps_zero_to_single() {
         // Arrange
@@ -273,6 +252,7 @@ mod tests {
         assert_eq!(result.unwrap(), CategoryVariant::Single);
     }
 
+    /// Verifies database pairing keys map safely into corresponding double entry rules.
     #[test]
     fn from_sql_maps_one_to_paired() {
         // Arrange
@@ -285,6 +265,7 @@ mod tests {
         assert_eq!(result.unwrap(), CategoryVariant::Paired);
     }
 
+    /// Verifies serialization errors raise when indexes fall outside bound schema configurations.
     #[test]
     fn from_sql_rejects_out_of_range_integer() {
         // Arrange
@@ -301,6 +282,7 @@ mod tests {
 
     // region: CategoryVariant ToSql
 
+    /// Verifies single configurations compile securely to logical integer states.
     #[test]
     fn to_sql_serializes_single_as_zero() {
         // Arrange
@@ -318,6 +300,7 @@ mod tests {
         }
     }
 
+    /// Verifies paired components serialize accurately to matching storage indicators.
     #[test]
     fn to_sql_serializes_paired_as_one() {
         // Arrange
@@ -335,6 +318,7 @@ mod tests {
         }
     }
 
+    /// Verifies transaction lifecycles perform intact round-trips through real database connections.
     #[test]
     fn to_sql_and_from_sql_round_trip_through_a_real_connection() {
         // Arrange

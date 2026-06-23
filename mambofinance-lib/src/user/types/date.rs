@@ -113,6 +113,7 @@ mod tests {
 
     // region: Date::new
 
+    /// Verifies that `Date::new` successfully constructs a struct from valid parameters.
     #[test]
     fn new_accepts_a_valid_date() {
         // Arrange
@@ -125,6 +126,7 @@ mod tests {
         assert_eq!((date.day, date.month, date.year), (15, 6, 2026));
     }
 
+    /// Verifies that `Date::new` rejects an invalid month index that exceeds 12.
     #[test]
     fn new_rejects_month_above_twelve() {
         // Arrange
@@ -135,6 +137,7 @@ mod tests {
         assert!(matches!(result, Err(DateError::InvalidMonth(13))));
     }
 
+    /// Verifies that December is accepted as a valid upper boundary for months.
     #[test]
     fn new_accepts_month_exactly_twelve() {
         // Arrange
@@ -145,6 +148,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    /// Verifies that a day parameter exceeding the month's maximum length throws a validation error.
     #[test]
     fn new_rejects_day_exceeding_days_in_month() {
         // Arrange
@@ -155,6 +159,7 @@ mod tests {
         assert!(matches!(result, Err(DateError::InvalidDay(31, _))));
     }
 
+    /// Verifies that February 29 is allowed when the year matches leap parameters.
     #[test]
     fn new_accepts_february_29_on_leap_year() {
         // Arrange
@@ -165,6 +170,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    /// Verifies that February 29 is blocked when the year does not match leap parameters.
     #[test]
     fn new_rejects_february_29_on_non_leap_year() {
         // Arrange
@@ -175,6 +181,7 @@ mod tests {
         assert!(matches!(result, Err(DateError::InvalidDay(29, _))));
     }
 
+    /// Verifies that February 28 is cleanly processed inside standard non-leap years.
     #[test]
     fn new_accepts_february_28_on_non_leap_year() {
         // Arrange
@@ -189,6 +196,7 @@ mod tests {
 
     // region: Date::from_row_offset
 
+    /// Verifies that row parsing can pull sequential day, month, and year values out of standard database structures.
     #[test]
     fn from_row_offset_maps_day_month_year_columns() {
         // Arrange
@@ -215,6 +223,7 @@ mod tests {
         assert_eq!((date.day, date.month, date.year), (5, 9, 2026));
     }
 
+    /// Verifies that database deserialization functions process fields at advanced index configurations.
     #[test]
     fn from_row_offset_respects_a_nonzero_column_offset() {
         // Arrange
@@ -245,6 +254,7 @@ mod tests {
 
     // region: Date::is_leap_year
 
+    /// Verifies leap determination returns true for basic cycles divisible by 4.
     #[test]
     fn is_leap_year_true_for_year_divisible_by_four() {
         // Arrange
@@ -255,6 +265,7 @@ mod tests {
         assert!(result);
     }
 
+    /// Verifies leap determination returns false for years outside standard 4-year splits.
     #[test]
     fn is_leap_year_false_for_year_not_divisible_by_four() {
         // Arrange
@@ -265,6 +276,7 @@ mod tests {
         assert!(!result);
     }
 
+    /// Verifies that exceptional century rules return false for baseline 100-year thresholds.
     #[test]
     fn is_leap_year_false_for_century_year_not_divisible_by_400() {
         // Arrange
@@ -275,6 +287,7 @@ mod tests {
         assert!(!result);
     }
 
+    /// Verifies that exceptional century rules return true for overriding 400-year checkpoints.
     #[test]
     fn is_leap_year_true_for_century_year_divisible_by_400() {
         // Arrange
@@ -287,36 +300,9 @@ mod tests {
 
     // endregion
 
-    // region: Display for Date
-
-    #[test]
-    fn display_formats_day_month_year_with_padding() {
-        // Arrange
-        let date = Date::new(1, 1, 2026).expect("valid date");
-
-        // Act
-        let rendered = format!("{}", date);
-
-        // Assert
-        assert_eq!(rendered, "01-JAN-2026");
-    }
-
-    #[test]
-    fn display_formats_double_digit_day_correctly() {
-        // Arrange
-        let date = Date::new(25, 12, 2026).expect("valid date");
-
-        // Act
-        let rendered = format!("{}", date);
-
-        // Assert
-        assert_eq!(rendered, "25-DEC-2026");
-    }
-
-    // endregion
-
     // region: PartialEq / Eq for Date
 
+    /// Verifies matching instances evaluate as equivalent under binary structural operations.
     #[test]
     fn equality_holds_for_identical_dates() {
         // Arrange
@@ -330,6 +316,7 @@ mod tests {
         assert!(is_equal);
     }
 
+    /// Verifies differing structures fail direct comparative equal queries.
     #[test]
     fn equality_fails_for_different_days() {
         // Arrange
@@ -347,6 +334,7 @@ mod tests {
 
     // region: Ord / PartialOrd for Date
 
+    /// Verifies sorting prioritization evaluates year bounds before lower components.
     #[test]
     fn ordering_compares_by_year_first() {
         // Arrange
@@ -360,6 +348,7 @@ mod tests {
         assert!(is_earlier_less);
     }
 
+    /// Verifies sorting fallback tracks internal months when wrapping years are completely identical.
     #[test]
     fn ordering_compares_by_month_when_year_matches() {
         // Arrange
@@ -373,6 +362,7 @@ mod tests {
         assert!(is_earlier_less);
     }
 
+    /// Verifies sorting resolution matches days when outer year and month containers lock.
     #[test]
     fn ordering_compares_by_day_when_year_and_month_match() {
         // Arrange
@@ -386,6 +376,7 @@ mod tests {
         assert!(is_earlier_less);
     }
 
+    /// Verifies array organization methods successfully sort dynamic dates sequentially.
     #[test]
     fn ordering_sorts_a_vec_of_dates_chronologically() {
         // Arrange

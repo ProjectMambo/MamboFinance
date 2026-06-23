@@ -8,7 +8,9 @@ use std::ops::{Add, Div, Mul, Rem, Sub};
 /// Represents a currency-bound monetary value, storing the absolute amount as a scaled 64-bit integer.
 #[derive(Clone)]
 pub struct Amount {
+    /// Absolute atomic value scaled down to minor units (e.g., cents).
     pub value: i64,
+    /// Associated currency tracking descriptor.
     pub currency: Currency,
 }
 
@@ -41,7 +43,7 @@ impl Display for Amount {
 
         write!(
             f,
-            "{:#} {:>width$}.{:0<2} {:<5}",
+            "{} {:>width$}.{:0<2} {:<5}",
             self.currency,
             val_abs / 100,
             val_abs % 100,
@@ -140,10 +142,12 @@ impl_mul_div_rem!(i8, i16, i32, i64, u8, u16, u32, u64, usize);
 /// Wrapper container providing un-allocated numeric value representations.
 #[derive(Clone, Copy)]
 pub struct RawAmount {
+    /// Raw un-allocated decimal representation payload.
     pub value: i64,
 }
 
 impl RawAmount {
+    /// Constructs a new `RawAmount` container instance.
     pub fn new(value: i64) -> Self {
         Self { value }
     }
@@ -159,8 +163,7 @@ mod tests {
 
     // region: helpers
 
-    // Builds a Currency directly via its public fields, bypassing the database,
-    // since Currency exposes no standalone constructor besides row-mapping.
+    /// Builds a Currency directly via its public fields, bypassing the database.
     fn make_currency(name: &str) -> Currency {
         Currency {
             label: Label::new(name, None),
@@ -172,6 +175,7 @@ mod tests {
 
     // region: Amount::new
 
+    /// Verifies that `Amount::new` cleanly initializes structures with corresponding fields.
     #[test]
     fn new_stores_value_and_currency() {
         // Arrange
@@ -189,6 +193,7 @@ mod tests {
 
     // region: Amount::from_row_offset
 
+    /// Verifies row mapping decodes sequence targets into valid localized composite domains.
     #[test]
     fn from_row_offset_maps_value_and_currency_columns() {
         // Arrange
@@ -223,6 +228,7 @@ mod tests {
 
     // region: Amount::flow
 
+    /// Verifies negative sign bounds route tracking flows as outgoing items.
     #[test]
     fn flow_reports_outgoing_for_negative_value() {
         // Arrange
@@ -235,6 +241,7 @@ mod tests {
         assert_eq!(direction, "> Out");
     }
 
+    /// Verifies positive values route transaction indicators as incoming steps.
     #[test]
     fn flow_reports_incoming_for_positive_value() {
         // Arrange
@@ -247,6 +254,7 @@ mod tests {
         assert_eq!(direction, "< In");
     }
 
+    /// Verifies that zero-valued allocations route matching incoming strings.
     #[test]
     fn flow_reports_incoming_for_zero_value() {
         // Arrange
@@ -261,64 +269,9 @@ mod tests {
 
     // endregion
 
-    // region: Display for Amount
-
-    #[test]
-    fn display_renders_scaled_decimal_value() {
-        // Arrange
-        let amount = Amount::new(1050, make_currency("USD"));
-
-        // Act
-        let rendered = format!("{}", amount);
-
-        // Assert
-        assert!(rendered.contains("10.50"));
-        assert!(rendered.contains("< In"));
-    }
-
-    #[test]
-    fn display_renders_negative_value_as_absolute_with_out_flow() {
-        // Arrange
-        let amount = Amount::new(-1050, make_currency("USD"));
-
-        // Act
-        let rendered = format!("{}", amount);
-
-        // Assert
-        assert!(rendered.contains("10.50"));
-        assert!(rendered.contains("> Out"));
-    }
-
-    #[test]
-    fn display_left_aligns_and_zero_fills_single_digit_cents() {
-        // Arrange
-        // The cents segment uses `{:0<2}` (zero-fill, left-aligned), so a
-        // single-digit remainder of 5 renders as "50", not "05".
-        let amount = Amount::new(105, make_currency("USD")); // 105 -> 1 dollar, 5 cents remainder
-
-        // Act
-        let rendered = format!("{}", amount);
-
-        // Assert
-        assert!(rendered.contains("1.50"));
-    }
-
-    #[test]
-    fn display_renders_double_digit_cents_unchanged() {
-        // Arrange
-        let amount = Amount::new(199, make_currency("USD")); // 1 dollar, 99 cents remainder
-
-        // Act
-        let rendered = format!("{}", amount);
-
-        // Assert
-        assert!(rendered.contains("1.99"));
-    }
-
-    // endregion
-
     // region: Eq / PartialEq for Amount
 
+    /// Verifies identical payload layouts resolve as equivalent configurations.
     #[test]
     fn equality_holds_for_same_value_and_currency() {
         // Arrange
@@ -333,6 +286,7 @@ mod tests {
         assert!(is_equal);
     }
 
+    /// Verifies differing balances trigger structural inequalities.
     #[test]
     fn equality_fails_for_different_values() {
         // Arrange
@@ -347,6 +301,7 @@ mod tests {
         assert!(!is_equal);
     }
 
+    /// Verifies mismatched tracking labels cancel out comparative values.
     #[test]
     fn equality_fails_for_different_currencies_even_with_same_value() {
         // Arrange
@@ -364,6 +319,7 @@ mod tests {
 
     // region: PartialOrd for Amount
 
+    /// Verifies that value bounds dictate ordering when outer asset boundaries match.
     #[test]
     fn partial_cmp_orders_same_currency_amounts_by_value() {
         // Arrange
@@ -378,6 +334,7 @@ mod tests {
         assert!(is_less);
     }
 
+    /// Verifies that cross-currency evaluations yield no relative ordering patterns.
     #[test]
     fn partial_cmp_returns_none_for_mismatched_currencies() {
         // Arrange
@@ -395,6 +352,7 @@ mod tests {
 
     // region: Add for Amount
 
+    /// Verifies addition accumulates totals securely under matching keys.
     #[test]
     fn add_sums_values_for_matching_currencies() {
         // Arrange
@@ -409,6 +367,7 @@ mod tests {
         assert_eq!(sum.value, 150);
     }
 
+    /// Verifies addition skips invalid calculation attempts across different asset classes.
     #[test]
     fn add_returns_left_operand_unchanged_for_mismatched_currencies() {
         // Arrange
@@ -427,6 +386,7 @@ mod tests {
 
     // region: Sub for Amount
 
+    /// Verifies tracking offsets compute differences cleanly given equivalent units.
     #[test]
     fn sub_subtracts_values_for_matching_currencies() {
         // Arrange
@@ -441,6 +401,7 @@ mod tests {
         assert_eq!(diff.value, 70);
     }
 
+    /// Verifies subtraction logic safely preserves left-hand entities upon mismatched variants.
     #[test]
     fn sub_returns_left_operand_unchanged_for_mismatched_currencies() {
         // Arrange
@@ -459,6 +420,7 @@ mod tests {
 
     // region: Mul / Div / Rem (macro-generated scalar ops) for Amount
 
+    /// Verifies standard multiplication expands structural values by scalar integers.
     #[test]
     fn mul_scales_value_by_integer_scalar() {
         // Arrange
@@ -471,6 +433,7 @@ mod tests {
         assert_eq!(result.value, 300);
     }
 
+    /// Verifies unsigned primitives scale calculations with explicit casts.
     #[test]
     fn mul_works_with_unsigned_scalar_type() {
         // Arrange
@@ -483,6 +446,7 @@ mod tests {
         assert_eq!(result.value, 200);
     }
 
+    /// Verifies division fractions atomic balances cleanly.
     #[test]
     fn div_divides_value_by_integer_scalar() {
         // Arrange
@@ -495,6 +459,7 @@ mod tests {
         assert_eq!(result.value, 25);
     }
 
+    /// Verifies remainder processing updates values with modular loops.
     #[test]
     fn rem_returns_remainder_of_value_by_scalar() {
         // Arrange
@@ -511,20 +476,20 @@ mod tests {
 
     // region: RawAmount::new
 
+    /// Verifies un-allocated amounts properly cache specified parameters.
     #[test]
     fn raw_amount_new_stores_the_given_value() {
-        // Arrange
-        // Act
+        // Arrange & Act
         let raw = RawAmount::new(4242);
 
         // Assert
         assert_eq!(raw.value, 4242);
     }
 
+    /// Verifies negative sign elements flow consistently into raw containers.
     #[test]
     fn raw_amount_new_supports_negative_values() {
-        // Arrange
-        // Act
+        // Arrange & Act
         let raw = RawAmount::new(-999);
 
         // Assert

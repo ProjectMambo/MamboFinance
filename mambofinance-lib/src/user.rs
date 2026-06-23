@@ -7,12 +7,12 @@ mod transaction;
 mod types;
 
 pub use category::CategoryVariant;
-pub(in crate::user) use category::*;
-pub(in crate::user) use currency::*;
-pub(in crate::user) use fund::*;
-pub(in crate::user) use group::*;
+pub use category::*;
+pub use currency::*;
+pub use fund::*;
+pub use group::*;
 pub use query::*;
-pub(in crate::user) use transaction::*;
+pub use transaction::*;
 pub(in crate::user) use types::*;
 
 use rusqlite::{Connection, Result};
@@ -492,13 +492,13 @@ impl User {
             "TRANSACTION",
             vec![
                 ("NO", 0, FieldVariant::Index),
-                ("NAME", NAME_LIMIT, FieldVariant::Static),
-                ("DESCRIPTION", DESC_LIMIT, FieldVariant::Static),
-                ("AMOUNT", AMOUNT_LIMIT + 13, FieldVariant::Static),
+                ("NAME", NAME_LIMIT, FieldVariant::Limit),
+                ("DESCRIPTION", DESC_LIMIT, FieldVariant::Limit),
+                ("AMOUNT", AMOUNT_LIMIT + 13, FieldVariant::Limit),
                 ("DATE", 11, FieldVariant::Static),
-                ("GROUP", NAME_LIMIT, FieldVariant::Static),
-                ("CATEGORY", NAME_LIMIT, FieldVariant::Static),
-                ("FUND", NAME_LIMIT, FieldVariant::Static),
+                ("GROUP", NAME_LIMIT, FieldVariant::Limit),
+                ("CATEGORY", NAME_LIMIT, FieldVariant::Limit),
+                ("FUND", NAME_LIMIT, FieldVariant::Limit),
                 ("LINK", 0, FieldVariant::Link),
             ],
         ))
@@ -512,7 +512,7 @@ impl User {
             "GROUP",
             vec![
                 ("NO", 0, FieldVariant::Index),
-                ("NAME", NAME_LIMIT, FieldVariant::Static),
+                ("NAME", NAME_LIMIT, FieldVariant::Limit),
                 ("COUNT", 0, FieldVariant::Count),
             ],
         ))
@@ -526,7 +526,7 @@ impl User {
             "CATEGORY",
             vec![
                 ("NO", 0, FieldVariant::Index),
-                ("NAME", NAME_LIMIT, FieldVariant::Static),
+                ("NAME", NAME_LIMIT, FieldVariant::Limit),
                 ("TYPE", VARIANT_LIMIT, FieldVariant::Static),
                 ("COUNT", 0, FieldVariant::Count),
             ],
@@ -541,7 +541,7 @@ impl User {
             "FUND",
             vec![
                 ("NO", 0, FieldVariant::Index),
-                ("NAME", NAME_LIMIT, FieldVariant::Static),
+                ("NAME", NAME_LIMIT, FieldVariant::Limit),
                 ("COUNT", 0, FieldVariant::Count),
             ],
         ))
@@ -555,7 +555,7 @@ impl User {
             "CURRENCY",
             vec![
                 ("NO", 0, FieldVariant::Index),
-                ("NAME", NAME_LIMIT, FieldVariant::Static),
+                ("NAME", NAME_LIMIT, FieldVariant::Limit),
                 ("COUNT", 0, FieldVariant::Count),
             ],
         ))
@@ -572,10 +572,10 @@ mod tests {
 
     // region: User::new_at_path (private)
 
+    /// Verifies initialization parameters produce a valid user file profile context containing matching identity metrics.
     #[test]
     fn new_at_path_creates_an_in_memory_user_with_given_name() {
-        // Arrange
-        // Act
+        // Arrange & Act
         let user = User::new_at_path(":memory:", "alice");
 
         // Assert
@@ -583,6 +583,7 @@ mod tests {
         assert_eq!(user.unwrap().name, "alice");
     }
 
+    /// Verifies core configuration maps populate the full scope of internal structural storage schema components.
     #[test]
     fn new_at_path_creates_all_expected_tables() {
         // Arrange
@@ -603,6 +604,7 @@ mod tests {
         assert_eq!(table_count, 5);
     }
 
+    /// Verifies that operational database engines run with active relational dependency enforcement routines enabled.
     #[test]
     fn new_at_path_enables_foreign_key_enforcement() {
         // Arrange
@@ -622,6 +624,7 @@ mod tests {
 
     // region: User::check_category_variant (private)
 
+    /// Verifies target categorization structural matching filters authorize exact matching definitions.
     #[test]
     fn check_category_variant_succeeds_when_variant_matches() {
         // Arrange
@@ -638,6 +641,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    /// Verifies asset entry parsing structures block incompatible structural properties across validation states.
     #[test]
     fn check_category_variant_fails_when_variant_mismatches() {
         // Arrange
@@ -654,6 +658,7 @@ mod tests {
         assert!(matches!(result, Err(UserError::Input(WrongVariant(_)))));
     }
 
+    /// Verifies checking routines surface missing record keys as lower level interface failures.
     #[test]
     fn check_category_variant_propagates_sql_error_for_unknown_id() {
         // Arrange
@@ -671,6 +676,7 @@ mod tests {
 
     // region: User::check_existing (private)
 
+    /// Verifies uniqueness checking blocks gracefully bypass empty identity evaluation workflows.
     #[test]
     fn check_existing_succeeds_when_name_is_none() {
         // Arrange
@@ -683,6 +689,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    /// Verifies allocation verification confirms clearance marks for unassigned structural tokens.
     #[test]
     fn check_existing_succeeds_when_name_does_not_exist_yet() {
         // Arrange
@@ -695,6 +702,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    /// Verifies registration guards trap overlapping names inside matching functional targets.
     #[test]
     fn check_existing_fails_when_name_already_exists() {
         // Arrange
@@ -715,6 +723,7 @@ mod tests {
 
     // region: User::get (private)
 
+    /// Verifies index mapping strategies parse record markers correctly from primary target labels.
     #[test]
     fn get_resolves_the_id_of_an_existing_entity() {
         // Arrange
@@ -728,6 +737,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    /// Verifies structural text filters match targets independently of raw user input formatting styles.
     #[test]
     fn get_is_case_and_format_insensitive_via_label_fmt() {
         // Arrange
@@ -742,6 +752,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    /// Verifies engine routing reports unmapped query tracking parameters cleanly as targeted empty states.
     #[test]
     fn get_returns_sql_error_for_a_nonexistent_entity() {
         // Arrange
@@ -761,6 +772,7 @@ mod tests {
 
     // region: User::add (private)
 
+    /// Verifies that foundational registration logic inserts valid entities into targeted tracking vectors.
     #[test]
     fn add_inserts_a_new_entity_when_unique() {
         // Arrange
@@ -774,6 +786,7 @@ mod tests {
         assert!(user.get::<Group>("Personal").is_ok());
     }
 
+    /// Verifies that core record wrappers enforce uniform name uniqueness boundaries inside individual tables.
     #[test]
     fn add_rejects_a_duplicate_entity_name() {
         // Arrange
@@ -794,6 +807,7 @@ mod tests {
 
     // region: User::ls_transaction (private)
 
+    /// Verifies compilation routines return empty arrays cleanly ahead of entry registrations.
     #[test]
     fn ls_transaction_returns_an_empty_vec_when_no_transactions_exist() {
         // Arrange
@@ -807,6 +821,7 @@ mod tests {
         assert!(result.unwrap().is_empty());
     }
 
+    /// Verifies operational extraction loops collect multi-table record joins safely into structured entities.
     #[test]
     fn ls_transaction_returns_inserted_transactions() {
         // Arrange
@@ -840,6 +855,7 @@ mod tests {
 
     // region: User::ls_group / ls_category / ls_fund / ls_currency (private)
 
+    /// Verifies aggregate group compilers output baseline tracking assignments properly before active operational attachments.
     #[test]
     fn ls_group_returns_zero_count_for_an_unused_group() {
         // Arrange
@@ -855,6 +871,7 @@ mod tests {
         assert_eq!(rows[0].count, 0);
     }
 
+    /// Verifies system calculation layers accurately increment active structural usages upon resource generation.
     #[test]
     fn ls_category_returns_correct_count_after_transactions_are_added() {
         // Arrange
@@ -886,6 +903,7 @@ mod tests {
         assert_eq!(food.count, 1);
     }
 
+    /// Verifies target account compiler summaries output pristine reference limits prior to active system entries.
     #[test]
     fn ls_fund_returns_zero_count_for_an_unused_fund() {
         // Arrange
@@ -901,6 +919,7 @@ mod tests {
         assert_eq!(rows[0].count, 0);
     }
 
+    /// Verifies currency evaluation frameworks reflect neutral allocation benchmarks during early staging setup.
     #[test]
     fn ls_currency_returns_zero_count_for_an_unused_currency() {
         // Arrange
@@ -918,8 +937,9 @@ mod tests {
 
     // endregion
 
-    // region: User::ls_table (private, exercised indirectly via ls_* wrappers)
+    // region: User::ls_table (private)
 
+    /// Verifies low-level collection loops parse syntax problems upstream into clear transactional exceptions.
     #[test]
     fn ls_table_propagates_a_malformed_query_as_a_sql_error() {
         // Arrange
@@ -936,10 +956,10 @@ mod tests {
 
     // region: User::new
 
+    /// Verifies volatile allocation wrappers construct safe runtime operational configurations cleanly.
     #[test]
     fn new_in_memory_creates_a_usable_user() {
-        // Arrange
-        // Act
+        // Arrange & Act
         let result = User::new_in_memory("bob");
 
         // Assert
@@ -951,6 +971,7 @@ mod tests {
 
     // region: User::add_transaction
 
+    /// Verifies standard journal entry processing pipelines map data correctly into corresponding storage properties.
     #[test]
     fn add_transaction_inserts_a_single_entry_transaction() {
         // Arrange
@@ -980,6 +1001,7 @@ mod tests {
         assert_eq!(rows[0].label.description, Some(String::from("Weekly shop")));
     }
 
+    /// Verifies single entries intercept and reject values paired against complex coordinate rules.
     #[test]
     fn add_transaction_rejects_a_paired_only_category() {
         // Arrange
@@ -1005,6 +1027,7 @@ mod tests {
         assert!(matches!(result, Err(UserError::Input(WrongVariant(_)))));
     }
 
+    /// Verifies calendar processing bounds drop incorrect or structurally impossible time intervals ahead of record storage.
     #[test]
     fn add_transaction_rejects_an_invalid_date() {
         // Arrange
@@ -1029,6 +1052,7 @@ mod tests {
         assert!(matches!(result, Err(UserError::Date(_))));
     }
 
+    /// Verifies entry processors fail safely when pointing to missing relational accounts or properties.
     #[test]
     fn add_transaction_rejects_an_unknown_fund() {
         // Arrange
@@ -1059,6 +1083,7 @@ mod tests {
 
     // region: User::add_paired_transaction
 
+    /// Verifies complex multi-leg journal transfers map balanced structural dependencies cleanly onto both nodes.
     #[test]
     fn add_paired_transaction_inserts_both_linked_legs() {
         // Arrange
@@ -1095,6 +1120,7 @@ mod tests {
         assert_eq!(rows[1].link, Some(rows[0].label.id));
     }
 
+    /// Verifies double-entry operations intercept and reject assignments targeting flat structural categories.
     #[test]
     fn add_paired_transaction_rejects_a_single_only_category() {
         // Arrange
@@ -1122,6 +1148,7 @@ mod tests {
         assert!(matches!(result, Err(UserError::Input(WrongVariant(_)))));
     }
 
+    /// Verifies atomic isolation strategies discard whole compound tracking states if single elements cross error boundaries.
     #[test]
     fn add_paired_transaction_rolls_back_on_failure_inserting_neither_leg() {
         // Arrange
@@ -1133,8 +1160,6 @@ mod tests {
             .expect("add_paired_category failed");
 
         // Act
-        // "Nonexistent" target fund causes the second insert closure's `self.get::<Fund>`
-        // call to fail before the transaction even starts, so nothing should be persisted.
         let result = user.add_paired_transaction(
             "Move",
             None,
@@ -1159,6 +1184,7 @@ mod tests {
 
     // region: User::add_group / add_category / add_paired_category / add_fund / add_currency
 
+    /// Verifies division registers assign unique tracking boundaries correctly into isolated targets.
     #[test]
     fn add_group_registers_a_new_group() {
         // Arrange
@@ -1172,6 +1198,7 @@ mod tests {
         assert_eq!(user.ls_group().unwrap().len(), 1);
     }
 
+    /// Verifies classification tools register base categorical divisions accurately under single-leg markers.
     #[test]
     fn add_category_registers_a_single_variant_category() {
         // Arrange
@@ -1186,6 +1213,7 @@ mod tests {
         assert_eq!(rows[0].variant, CategoryVariant::Single);
     }
 
+    /// Verifies classification engines construct paired category tracking properties cleanly with proper variants.
     #[test]
     fn add_paired_category_registers_a_paired_variant_category() {
         // Arrange
@@ -1200,6 +1228,7 @@ mod tests {
         assert_eq!(rows[0].variant, CategoryVariant::Paired);
     }
 
+    /// Verifies asset manager nodes establish localized account storage maps accurately upon command execution.
     #[test]
     fn add_fund_registers_a_new_fund() {
         // Arrange
@@ -1213,6 +1242,7 @@ mod tests {
         assert_eq!(user.ls_fund().unwrap().len(), 1);
     }
 
+    /// Verifies currency tracker frames map individual identifier values successfully into active records.
     #[test]
     fn add_currency_registers_a_new_currency() {
         // Arrange
@@ -1230,8 +1260,9 @@ mod tests {
 
     // region: User::transactions / groups / categories / funds / currencies (Query builders)
 
+    /// Verifies data queries structure clear headers matching expected presentation requirements.
     #[test]
-    fn transactions_builds_a_query_with_expected_headers() {
+    fn transactions_build_a_query_with_expected_headers() {
         // Arrange
         let user = User::new_in_memory("alice").expect("user creation should succeed");
 
@@ -1262,6 +1293,7 @@ mod tests {
         );
     }
 
+    /// Verifies presentation engines configure header metadata tags correctly based on the entity domain query targets.
     #[test]
     fn groups_builds_a_query_with_expected_title() {
         // Arrange
@@ -1278,6 +1310,7 @@ mod tests {
         assert_eq!(query.rows.len(), 1);
     }
 
+    /// Verifies categorization filters extract all active entries into view targets.
     #[test]
     fn categories_builds_a_query_containing_registered_categories() {
         // Arrange
@@ -1292,6 +1325,7 @@ mod tests {
         assert_eq!(query.unwrap().rows.len(), 1);
     }
 
+    /// Verifies resource tracking metrics route stored entities accurately to analytical view grids.
     #[test]
     fn funds_builds_a_query_containing_registered_funds() {
         // Arrange
@@ -1306,6 +1340,7 @@ mod tests {
         assert_eq!(query.unwrap().rows.len(), 1);
     }
 
+    /// Verifies standard system query layers forward assigned currency components correctly without translation loss.
     #[test]
     fn currencies_builds_a_query_containing_registered_currencies() {
         // Arrange
