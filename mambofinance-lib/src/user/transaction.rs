@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 /// Represents a financial transaction entry within the accounting system.
 #[allow(dead_code)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Transaction {
     /// Combined key descriptor caching specific identity strings.
     pub label: Label,

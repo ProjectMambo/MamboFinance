@@ -67,7 +67,6 @@ pub enum InputError {
 }
 
 /// Consolidated top-level error enum handling all operational error variants.
-#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 #[derive(Error, Debug)]
 pub enum UserError {
     /// Relayed input validation or structural matching issues.
@@ -390,6 +389,290 @@ impl User {
 
 // endregion
 
+// region: Wrap & Delete & Edit
+
+pub trait Wrappable {
+    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a>
+    where
+        Self: Sized;
+}
+
+impl Wrappable for Transaction {
+    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
+        UserQuery::Transaction(query)
+    }
+}
+
+impl Wrappable for Group {
+    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
+        UserQuery::Group(query)
+    }
+}
+
+impl Wrappable for Category {
+    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
+        UserQuery::Category(query)
+    }
+}
+
+impl Wrappable for Fund {
+    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
+        UserQuery::Fund(query)
+    }
+}
+
+impl Wrappable for Currency {
+    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
+        UserQuery::Currency(query)
+    }
+}
+
+pub enum UserQuery<'a> {
+    Transaction(&'a Query<Transaction>),
+    Group(&'a Query<Group>),
+    Category(&'a Query<Category>),
+    Fund(&'a Query<Fund>),
+    Currency(&'a Query<Currency>),
+}
+
+impl<'a> UserQuery<'a> {
+    pub fn wrap<T>(query: &'a Query<T>) -> UserQuery<'a>
+    where
+        T: Wrappable,
+    {
+        T::wrap_query(query)
+    }
+}
+
+impl User {
+    /// Permanently deletes the entity at the given query row index from its database table.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UserError` if the index is out of bounds or database operations encounter issues.
+    pub fn delete<T: HasLabel>(self, query: &Query<T>, index: usize) -> Result<Self, UserError> {
+        let id = query.get_item(index)?.id();
+        self.conn
+            .execute(&format!("DELETE FROM {} WHERE id = ?1", T::table()), [id])
+            .map_err(UserError::SQL)?;
+        Ok(self)
+    }
+
+    /// Standardized wrapper facilitating mutation operations while preserving structural integrity checks.
+    fn edit<T: HasLabel>(
+        self,
+        query: &Query<T>,
+        index: usize,
+        existing: Option<&str>,
+        edit: impl FnOnce(&rusqlite::Connection, Uuid) -> rusqlite::Result<usize>,
+    ) -> Result<Self, UserError> {
+        self.check_existing::<T>(existing)?;
+        let id = query.get_item(index)?.id();
+        edit(&self.conn, id).map(|_| ()).map_err(UserError::SQL)?;
+        Ok(self)
+    }
+
+    /// Mutates organizational display names across generic variants or paired transaction allocations.
+    pub fn edit_name<T: HasLabel + Wrappable>(
+        self,
+        query: &Query<T>,
+        index: usize,
+        new_name: &str,
+    ) -> Result<Self, UserError> {
+        let formatted_name = Label::fmt(new_name);
+
+        macro_rules! edit_name {
+            ($query:expr) => {{
+                self.edit($query, index, Some(&formatted_name), |conn, id| {
+                    conn.execute(
+                        &format!("UPDATE {} SET name = ?1 WHERE id = ?2", T::table()),
+                        rusqlite::params![formatted_name.clone(), id],
+                    )
+                })
+            }};
+        }
+        let query = UserQuery::wrap(query);
+        match query {
+            UserQuery::Transaction(query) => {
+                self.edit_shared(query, index, |conn, id, other_id| {
+                    conn.execute(
+                        "UPDATE transactions SET name = ?1 WHERE id IN (?2, ?3)",
+                        rusqlite::params![formatted_name, id, other_id],
+                    )
+                })
+            }
+            UserQuery::Group(query) => edit_name!(query),
+            UserQuery::Category(query) => edit_name!(query),
+            UserQuery::Fund(query) => edit_name!(query),
+            UserQuery::Currency(query) => edit_name!(query),
+        }
+    }
+
+    /// Toggles structural category variants (Single vs Paired), blocking variations with linked active records.
+    pub fn edit_variant(
+        self,
+        query: &Query<Category>,
+        index: usize,
+        new_variant: CategoryVariant,
+    ) -> Result<Self, UserError> {
+        let cat = query.get_item(index)?;
+        if cat.count > 0 {
+            return Err(UserError::Input(InputError::CategoryInUse(cat.count)));
+        }
+
+        self.edit(query, index, None, |conn, id| {
+            conn.execute(
+                "UPDATE categories SET variant = ?1 WHERE id = ?2",
+                rusqlite::params![new_variant, id],
+            )
+        })
+    }
+
+    /// Mutates structurally assigned category formats while forcing cascading unlinks over any active matching records.
+    pub fn force_edit_variant(
+        self,
+        query: &Query<Category>,
+        index: usize,
+        new_variant: CategoryVariant,
+    ) -> Result<Self, UserError> {
+        self.edit(query, index, None, |conn, id| {
+            conn.execute(
+                "UPDATE transactions SET link_id = NULL WHERE category_id = ?1",
+                [id],
+            )
+        })?
+        .edit(query, index, None, |conn, id| {
+            conn.execute(
+                "UPDATE categories SET variant = ?1 WHERE id = ?2",
+                rusqlite::params![new_variant, id],
+            )
+        })
+    }
+
+    /// Intercepts shared transactions to pass adjustments safely to double-entry system complements.
+    fn edit_shared(
+        self,
+        query: &Query<Transaction>,
+        index: usize,
+        edit: impl FnOnce(&rusqlite::Connection, Uuid, Uuid) -> rusqlite::Result<usize>,
+    ) -> Result<Self, UserError> {
+        let link = query.get_item(index)?.link;
+        let edit = |conn: &Connection, id| {
+            let other_id = link.unwrap_or(id);
+            edit(conn, id, other_id)
+        };
+
+        self.edit(query, index, None, edit)
+    }
+
+    /// Remaps chosen transaction targets to a separate transaction group.
+    pub fn edit_group(
+        self,
+        query: &Query<Transaction>,
+        index: usize,
+        new_group: &str,
+    ) -> Result<Self, UserError> {
+        let group_id = self.get::<Group>(&Label::fmt(new_group))?;
+        self.edit_shared(query, index, |conn, id, other_id| {
+            conn.execute(
+                "UPDATE transactions SET group_id = ?1 WHERE id IN (?2, ?3)",
+                rusqlite::params![group_id, id, other_id],
+            )
+        })
+    }
+
+    /// Modifies log timestamps across singular entries or linked dynamic double-entries.
+    pub fn edit_date(
+        self,
+        query: &Query<Transaction>,
+        index: usize,
+        day: u8,
+        month: u8,
+        year: u16,
+    ) -> Result<Self, UserError> {
+        let date = Date::new(day, month, year)?;
+        self.edit_shared(query, index, |conn, id, other_id| {
+            conn.execute(
+                "UPDATE transactions SET day=?1, month=?2, year=?3 WHERE id = ?4 OR id = ?5",
+                rusqlite::params![date.day, date.month, date.year, id, other_id],
+            )
+        })
+    }
+
+    /// Alters operational categorization labels, requiring double-entry compatibility variants for paired targets.
+    pub fn edit_category(
+        self,
+        query: &Query<Transaction>,
+        index: usize,
+        new_category: &str,
+    ) -> Result<Self, UserError> {
+        let category_id = self.get::<Category>(&Label::fmt(new_category))?;
+
+        let required_variant = if query.get_item(index)?.link.is_some() {
+            CategoryVariant::Paired
+        } else {
+            CategoryVariant::Single
+        };
+        self.check_category_variant(category_id, required_variant)?;
+
+        self.edit_shared(query, index, |conn, id, other_id| {
+            conn.execute(
+                "UPDATE transactions SET category_id = ?1 WHERE id IN (?2, ?3)",
+                rusqlite::params![category_id, id, other_id],
+            )
+        })
+    }
+
+    /// Adjusts individual account mappings for targeted transaction lines.
+    pub fn edit_fund(
+        self,
+        query: &Query<Transaction>,
+        index: usize,
+        new_fund: &str,
+    ) -> Result<Self, UserError> {
+        let fund_id = self.get::<Fund>(&Label::fmt(new_fund))?;
+        self.edit(query, index, None, |conn, id| {
+            conn.execute(
+                "UPDATE transactions SET fund_id = ?1 WHERE id = ?2",
+                rusqlite::params![fund_id, id],
+            )
+        })
+    }
+
+    /// Updates raw financial values on a single target entry.
+    pub fn edit_amount(
+        self,
+        query: &Query<Transaction>,
+        index: usize,
+        amount: i64,
+    ) -> Result<Self, UserError> {
+        self.edit(query, index, None, |conn, id| {
+            conn.execute(
+                "UPDATE transactions SET amount = ?1 WHERE id = ?2",
+                rusqlite::params![amount, id],
+            )
+        })
+    }
+
+    /// Adjusts systemic currency mapping associations on a single target entry.
+    pub fn edit_currency(
+        self,
+        query: &Query<Transaction>,
+        index: usize,
+        new_currency: &str,
+    ) -> Result<Self, UserError> {
+        let currency_id = self.get::<Currency>(&Label::fmt(new_currency))?;
+        self.edit(query, index, None, |conn, id| {
+            conn.execute(
+                "UPDATE transactions SET currency_id = ?1 WHERE id = ?2",
+                rusqlite::params![currency_id, id],
+            )
+        })
+    }
+}
+
+// endregion
+
 // region: ls & Query
 
 impl User {
@@ -485,9 +768,8 @@ impl User {
 
 impl User {
     /// Constructs a dataset query wrapper focused around all ledger transactions.
-    pub fn transactions(&self) -> Result<Query<'_, Transaction>, UserError> {
+    pub fn transactions(&self) -> Result<Query<Transaction>, UserError> {
         Ok(Query::new(
-            self,
             self.ls_transaction()?,
             "TRANSACTION",
             vec![
@@ -505,9 +787,8 @@ impl User {
     }
 
     /// Constructs a dataset query wrapper focused around registered category tracking groups.
-    pub fn groups(&self) -> Result<Query<'_, Group>, UserError> {
+    pub fn groups(&self) -> Result<Query<Group>, UserError> {
         Ok(Query::new(
-            self,
             self.ls_group()?,
             "GROUP",
             vec![
@@ -519,9 +800,8 @@ impl User {
     }
 
     /// Constructs a dataset query wrapper focused around registered accounting categories.
-    pub fn categories(&self) -> Result<Query<'_, Category>, UserError> {
+    pub fn categories(&self) -> Result<Query<Category>, UserError> {
         Ok(Query::new(
-            self,
             self.ls_category()?,
             "CATEGORY",
             vec![
@@ -534,9 +814,8 @@ impl User {
     }
 
     /// Constructs a dataset query wrapper focused around active balance funds and accounts.
-    pub fn funds(&self) -> Result<Query<'_, Fund>, UserError> {
+    pub fn funds(&self) -> Result<Query<Fund>, UserError> {
         Ok(Query::new(
-            self,
             self.ls_fund()?,
             "FUND",
             vec![
@@ -548,9 +827,8 @@ impl User {
     }
 
     /// Constructs a dataset query wrapper focused around registered global currencies.
-    pub fn currencies(&self) -> Result<Query<'_, Currency>, UserError> {
+    pub fn currencies(&self) -> Result<Query<Currency>, UserError> {
         Ok(Query::new(
-            self,
             self.ls_currency()?,
             "CURRENCY",
             vec![

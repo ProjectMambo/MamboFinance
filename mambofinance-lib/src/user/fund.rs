@@ -3,7 +3,7 @@ use crate::user::{Flattenable, HasLabel, Label};
 use std::fmt::{Display, Formatter};
 
 /// Represents an asset storage account or location (e.g., Cash, Bank, Savings) within the system.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Fund {
     /// Associated metadata label containing name information.
     pub label: Label,

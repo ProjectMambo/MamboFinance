@@ -3,7 +3,7 @@ use crate::user::{Flattenable, HasLabel, Label, VARIANT_LIMIT};
 use std::fmt::{Display, Formatter, Write};
 
 /// Represents a transaction classification group which determines structural rules.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Category {
     /// Associated metadata label containing name information.
     pub label: Label,

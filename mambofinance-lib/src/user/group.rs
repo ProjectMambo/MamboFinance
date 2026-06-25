@@ -3,7 +3,7 @@ use crate::user::{Flattenable, HasLabel, Label};
 use std::fmt::{Display, Formatter};
 
 /// Represents a structural category classification used to organize ledger operations.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Group {
     /// Associated metadata label containing name information.
     pub label: Label,

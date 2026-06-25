@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 use std::ops::{Add, Div, Mul, Rem, Sub};
 
 /// Represents a currency-bound monetary value, storing the absolute amount as a scaled 64-bit integer.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Amount {
     /// Absolute atomic value scaled down to minor units (e.g., cents).
     pub value: i64,

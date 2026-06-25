@@ -9,7 +9,7 @@ const MONTHS_NAME: [&str; 12] = [
 ];
 
 /// Represents a validated calendar date optimized for local accounting logs.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Date {
     pub day: u8,
     pub month: u8,
