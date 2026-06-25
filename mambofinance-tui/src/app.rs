@@ -2,28 +2,40 @@ use color_eyre::Result;
 use mambofinance_lib::user::{User, UserError};
 use ratatui::DefaultTerminal;
 
-use crate::widgets::user_list::UserListState;
+use crate::widgets::{TabState, UIState, user_list::UserListState};
 
 #[derive(Debug)]
 pub struct App {
     pub user: User,
-    pub user_list_state: UserListState,
+    pub ui_state: UIState,
     pub should_quit: bool,
 }
 
 impl App {
     pub fn new(name: &str) -> Result<Self, UserError> {
-        let user_list_state = UserListState::new();
+        let user = User::new_in_memory(name)?;
+
+        let user_list_state = UserListState::new(&user)?;
+        let tabs: Vec<TabState> = vec![TabState::UserList(user_list_state)];
+
+        let ui_state = UIState::new(tabs);
 
         Ok(App {
-            user: User::new_in_memory(name)?,
-            user_list_state,
+            user,
+            ui_state,
             should_quit: false,
         })
     }
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         test_user_flow(&self.user)?;
+        for _ in 0..20 {
+            test_add_transaction(&self.user)?;
+        }
+
+        if let Some(tab) = self.ui_state.get_mut() {
+            tab.update_data(&self.user)?;
+        }
 
         while !self.should_quit {
             terminal.draw(|f| crate::ui::render(f, &mut self))?;
@@ -109,7 +121,10 @@ fn test_user_flow(user: &User) -> Result<(), UserError> {
         "Salary Income",
         "Checking Account",
     )?;
+    Ok(())
+}
 
+fn test_add_transaction(user: &User) -> Result<(), UserError> {
     user.add_transaction(
         "Whole Foods Market",
         Some("Weekly grocery run including meal prep"),

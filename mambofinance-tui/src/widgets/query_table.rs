@@ -1,70 +1,52 @@
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
 use mambofinance_lib::user::{
-    Category, Currency, FieldVariant, FlattenableQuery, Fund, Group, Query, Refreshable,
+    Category, Currency, FieldVariant, FlattenableQuery, Fund, Group, Header, Matrix, Query,
     Transaction, User, UserError,
 };
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Cell, Row, StatefulWidget, Table, TableState};
 
-use crate::widgets::Navigable;
+use crate::widgets::PanelState;
 
 const COLUMN_THRESHOLD: usize = 4;
 
-pub struct QueryTable<'a, T> {
-    user: &'a User,
-    pub query: Query<'a, T>,
+pub struct QueryTable<T> {
+    items: Matrix,
+    headers: Vec<Header>,
+    _marker: PhantomData<T>,
 }
 
-impl<'a, T: Fetchable<'a>> QueryTable<'a, T> {
-    pub fn new(user: &'a User) -> Result<Self, UserError> {
-        let query = T::fetch(user)?;
-
-        Ok(QueryTable { user, query })
-    }
-}
-
-impl<'a, T: Fetchable<'a>> Navigable for QueryTable<'a, T> {
-    type State = TableState;
-
-    fn next(&self, state: &mut Self::State) {
-        if self.query.is_empty() {
-            return;
-        }
-        let i = state
-            .selected()
-            .map_or(0, Self::next_wrapped(self.query.len()));
-        state.select(Some(i));
-    }
-
-    fn previous(&self, state: &mut Self::State) {
-        if self.query.is_empty() {
-            return;
-        }
-        let i = state
-            .selected()
-            .map_or(0, Self::previous_wrapped(self.query.len()));
-        state.select(Some(i));
-    }
-}
-
-impl<'a, T: Fetchable<'a>> StatefulWidget for QueryTable<'a, T>
+impl<T: Fetchable> QueryTable<T>
 where
-    Query<'a, T>: FlattenableQuery,
+    Query<T>: FlattenableQuery,
 {
-    type State = TableState;
+    pub fn new(query: &Query<T>) -> Self {
+        let items = query.flatten();
+        let headers = query.headers.clone();
+        Self {
+            items,
+            headers,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T: Fetchable> StatefulWidget for QueryTable<T> {
+    type State = QueryTableState<T>;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State)
     where
         Self: Sized,
     {
         let rows: Vec<Row> = self
-            .query
-            .flatten()
+            .items
             .into_iter()
             .map(|r| Row::new(r.into_iter().map(Cell::from)))
             .collect();
 
         let (mut headers, mut widths): (Vec<String>, Vec<Constraint>) = self
-            .query
             .headers
             .iter()
             .map(|(s, w, v)| {
@@ -90,44 +72,118 @@ where
         let table_widget = Table::new(rows, widths)
             .header(header_row)
             .block(Block::bordered().title(" List "))
-            .highlight_symbol(">> ")
+            .highlight_symbol("> ")
             .row_highlight_style(Style::new().bg(Color::DarkGray))
             .column_spacing(2);
 
-        StatefulWidget::render(table_widget, area, buf, state);
+        StatefulWidget::render(table_widget, area, buf, &mut state.state);
     }
 }
 
-pub trait Fetchable<'a>: Sized {
-    fn fetch(user: &'a User) -> Result<Query<'a, Self>, UserError>;
+// region: QueryTableState
+
+#[derive(Debug)]
+pub struct QueryTableState<T> {
+    pub state: TableState,
+    query: Query<T>,
+    need_query: bool,
 }
 
-impl<'a> Fetchable<'a> for Transaction {
-    fn fetch(user: &'a User) -> Result<Query<'a, Self>, UserError> {
+impl<T: Fetchable> QueryTableState<T>
+where
+    Query<T>: FlattenableQuery,
+{
+    pub fn new(user: &User) -> Result<Self, UserError> {
+        let state = TableState::default();
+        let query = T::fetch(user)?;
+
+        Ok(QueryTableState {
+            state,
+            query,
+            need_query: true,
+        })
+    }
+
+    pub fn to_widget(&self) -> QueryTable<T> {
+        QueryTable::new(&self.query)
+    }
+
+    pub fn update_data(&mut self, user: &User) -> Result<(), UserError> {
+        if self.need_query {
+            self.query = T::fetch(user)?;
+            self.need_query = false;
+        }
+        Ok(())
+    }
+}
+
+impl<T: Debug> PanelState for QueryTableState<T> {
+    fn next(&mut self) {
+        if self.query.is_empty() {
+            return;
+        }
+        let i = self
+            .state
+            .selected()
+            .map_or(0, |cur| self.next_wrapped(self.query.len(), cur));
+        self.state.select(Some(i));
+    }
+
+    fn prev(&mut self) {
+        if self.query.is_empty() {
+            return;
+        }
+        let i = self.state.selected().map_or(self.query.len() - 1, |cur| {
+            self.prev_wrapped(self.query.len(), cur)
+        });
+        self.state.select(Some(i));
+    }
+
+    fn none(&mut self) {
+        self.state.select(None);
+    }
+
+    fn selected(&self) -> Option<usize> {
+        self.state.selected()
+    }
+}
+
+// endregion
+
+// region: Fetchable
+
+pub trait Fetchable: Sized {
+    fn fetch(user: &User) -> Result<Query<Self>, UserError>;
+}
+
+impl Fetchable for Transaction {
+    fn fetch(user: &User) -> Result<Query<Self>, UserError> {
         user.transactions()
     }
 }
 
-impl<'a> Fetchable<'a> for Group {
-    fn fetch(user: &'a User) -> Result<Query<'a, Self>, UserError> {
+impl Fetchable for Group {
+    fn fetch(user: &User) -> Result<Query<Self>, UserError> {
         user.groups()
     }
 }
 
-impl<'a> Fetchable<'a> for Category {
-    fn fetch(user: &'a User) -> Result<Query<'a, Self>, UserError> {
+impl Fetchable for Category {
+    fn fetch(user: &User) -> Result<Query<Self>, UserError> {
         user.categories()
     }
 }
 
-impl<'a> Fetchable<'a> for Fund {
-    fn fetch(user: &'a User) -> Result<Query<'a, Self>, UserError> {
+impl Fetchable for Fund {
+    fn fetch(user: &User) -> Result<Query<Self>, UserError> {
         user.funds()
     }
 }
 
-impl<'a> Fetchable<'a> for Currency {
-    fn fetch(user: &'a User) -> Result<Query<'a, Self>, UserError> {
+impl Fetchable for Currency {
+    fn fetch(user: &User) -> Result<Query<Self>, UserError> {
         user.currencies()
     }
 }
+
+// endregion
