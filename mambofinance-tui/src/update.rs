@@ -1,28 +1,27 @@
-use crate::app::App;
-use crate::widgets::FocusState;
+use crate::{
+    app::{App, AppContext},
+    widgets::PanelState,
+};
 use color_eyre::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 
 pub fn handle_events(app: &mut App) -> Result<()> {
-    if let Event::Key(KeyEvent {
-        code,
-        kind: KeyEventKind::Press,
-        ..
-    }) = event::read()?
-    {
-        match code {
-            KeyCode::Char('q') => {
+    if let Event::Key(key_event) = event::read()? {
+        if key_event.kind != KeyEventKind::Press {
+            return Ok(());
+        }
+
+        match key_event.code {
+            KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.should_quit = true;
             }
-            KeyCode::Right | KeyCode::Char('l') => {
-                app.ui_state.focus_next();
-            }
-            KeyCode::Left | KeyCode::Char('h') => {
-                app.ui_state.focus_prev();
-            }
-            KeyCode::Up | KeyCode::Char('k') => app.ui_state.prev(),
-            KeyCode::Down | KeyCode::Char('j') => app.ui_state.next(),
-            _ => {}
+            _ => app.ui_state.handle_key_events(
+                key_event,
+                AppContext {
+                    user: &mut app.user,
+                    input_override: &app.input_override,
+                },
+            ),
         }
     }
     Ok(())

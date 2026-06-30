@@ -1,3 +1,4 @@
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -5,26 +6,21 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, StatefulWidget},
 };
 
-use crate::widgets::PanelState;
+use crate::{
+    app::AppContext,
+    widgets::{Actionable, PanelState},
+};
 
-pub struct SideBar {
-    tabs: Vec<String>,
-}
-
-impl SideBar {
-    pub fn new(tabs: Vec<String>) -> Self {
-        Self { tabs }
-    }
-}
+pub struct SideBar;
 
 impl StatefulWidget for SideBar {
     type State = SideBarState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let items: Vec<ListItem> = self
+        let items: Vec<ListItem> = state
             .tabs
             .iter()
-            .map(|tab_name| ListItem::new(tab_name.as_str()))
+            .map(|tab_name| ListItem::new(format!(" {tab_name}")))
             .collect();
 
         let sidebar_widget = List::new(items)
@@ -34,7 +30,7 @@ impl StatefulWidget for SideBar {
                     .bg(Color::DarkGray)
                     .add_modifier(Modifier::BOLD),
             )
-            .highlight_symbol("> ");
+            .highlight_symbol(">");
 
         StatefulWidget::render(sidebar_widget, area, buf, &mut state.state);
     }
@@ -53,12 +49,8 @@ impl SideBarState {
         Self {
             state,
             tabs: tabs.iter().map(|t| t.to_string()).collect(),
-            shown: None,
+            shown: Some(0),
         }
-    }
-
-    pub fn to_widget(&self) -> SideBar {
-        SideBar::new(self.tabs.clone())
     }
 
     pub fn sync(&mut self) -> Option<usize> {
@@ -71,33 +63,35 @@ impl SideBarState {
     }
 }
 
-impl PanelState for SideBarState {
-    fn next(&mut self) {
-        if self.tabs.is_empty() {
-            return;
-        }
-        let i = self
-            .state
-            .selected()
-            .map_or(0, |cur| self.next_wrapped(self.tabs.len(), cur));
-        self.state.select(Some(i));
-    }
-
-    fn prev(&mut self) {
-        if self.tabs.is_empty() {
-            return;
-        }
-        let i = self.state.selected().map_or(self.tabs.len() - 1, |cur| {
-            self.prev_wrapped(self.tabs.len(), cur)
-        });
-        self.state.select(Some(i));
-    }
-
-    fn none(&mut self) {
-        self.state.select(None);
+impl Actionable for SideBarState {
+    fn select(&mut self, index: Option<usize>) {
+        self.state.select(index);
     }
 
     fn selected(&self) -> Option<usize> {
         self.state.selected()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.tabs.is_empty()
+    }
+
+    fn len(&self) -> usize {
+        self.tabs.len()
+    }
+}
+
+impl PanelState for SideBarState {
+    fn handle_key_events(
+        &mut self,
+        event: KeyEvent,
+        #[allow(unused_variables)] context: AppContext,
+    ) {
+        match event.code {
+            _ if context.is_override() => self.pass(event, context),
+            KeyCode::Up | KeyCode::Char('k') => self.prev(),
+            KeyCode::Down | KeyCode::Char('j') => self.next(),
+            _ => self.pass(event, context),
+        }
     }
 }

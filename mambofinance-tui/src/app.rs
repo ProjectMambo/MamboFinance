@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use color_eyre::Result;
 use mambofinance_lib::user::{User, UserError};
 use ratatui::DefaultTerminal;
@@ -8,6 +10,7 @@ use crate::widgets::{TabState, UIState, user_list::UserListState};
 pub struct App {
     pub user: User,
     pub ui_state: UIState,
+    pub input_override: Cell<bool>,
     pub should_quit: bool,
 }
 
@@ -23,6 +26,7 @@ impl App {
         Ok(App {
             user,
             ui_state,
+            input_override: Cell::new(false),
             should_quit: false,
         })
     }
@@ -42,6 +46,21 @@ impl App {
             crate::update::handle_events(&mut self)?;
         }
         Ok(())
+    }
+}
+
+pub struct AppContext<'a> {
+    pub user: &'a mut User,
+    pub input_override: &'a Cell<bool>,
+}
+
+impl<'a> AppContext<'a> {
+    pub fn is_override(&self) -> bool {
+        self.input_override.get()
+    }
+
+    pub fn input(&self, is_override: bool) {
+        self.input_override.set(is_override);
     }
 }
 
@@ -111,6 +130,10 @@ fn test_user_flow(user: &User) -> Result<(), UserError> {
         .add_paired_category("Brokerage Deposit")?
         .add_paired_category("Crypto Fiat Gateway")?;
 
+    Ok(())
+}
+
+fn test_add_transaction(user: &User) -> Result<(), UserError> {
     // Single-Entry Transactions
     user.add_transaction(
         "Bi-Weekly Paycheck",
@@ -121,10 +144,7 @@ fn test_user_flow(user: &User) -> Result<(), UserError> {
         "Salary Income",
         "Checking Account",
     )?;
-    Ok(())
-}
 
-fn test_add_transaction(user: &User) -> Result<(), UserError> {
     user.add_transaction(
         "Whole Foods Market",
         Some("Weekly grocery run including meal prep"),

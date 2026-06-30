@@ -12,6 +12,7 @@ pub struct Query<T> {
     pub rows: Vec<Entry<T>>,
     /// Internal buffer holding rows currently excluded by active filters.
     filtered_rows: Vec<Entry<T>>,
+    pub filter_sort: Vec<FilterSort>,
 
     /// The descriptive title of the query view.
     pub title: String,
@@ -42,6 +43,54 @@ pub enum FieldVariant {
     Link,
     /// A counter indicating the total number of associated sub-items.
     Count,
+}
+
+#[derive(Debug)]
+pub enum FilterSort {
+    SortReverse, // every
+    SortName,
+    SortType, // catogory variant
+    SortDate, // transaction
+    SortAmount,
+    SortAbsAmount,
+    SortFlow,
+    SortGroup,
+    SortCategory,
+    SortFund,
+    SortCurrency,
+    FilterReverse,          //every
+    FilterDate(Date, Date), // transaction
+    FilterGroup(String),
+    FilterCategory(String),
+    FilterFund(String),
+    FilterCurrency(String),
+}
+
+impl FilterSort {
+    fn is_sort(i: &FilterSort) -> bool {
+        matches!(
+            i,
+            FilterSort::SortReverse
+                | FilterSort::SortName
+                | FilterSort::SortType
+                | FilterSort::SortDate
+                | FilterSort::SortAmount
+                | FilterSort::SortAbsAmount
+                | FilterSort::SortFlow
+                | FilterSort::SortGroup
+                | FilterSort::SortCategory
+                | FilterSort::SortFund
+                | FilterSort::SortCurrency
+        )
+    }
+
+    pub fn sort_clear(v: &mut Vec<FilterSort>) {
+        v.retain(|i| !Self::is_sort(i));
+    }
+
+    pub fn filter_clear(v: &mut Vec<FilterSort>) {
+        v.retain(Self::is_sort);
+    }
 }
 
 /// Provides a resetting mechanism to recalculate dynamic layout data.
@@ -102,6 +151,7 @@ where
         Query {
             rows: entries,
             filtered_rows: Vec::new(),
+            filter_sort: Vec::new(),
             title: String::from(title),
             headers,
         }
@@ -215,24 +265,28 @@ where
 {
     /// Reverses the current order of visible elements inside the query view.
     pub fn sort_reverse(mut self) -> Self {
+        self.filter_sort.push(FilterSort::SortReverse);
         self.rows.reverse();
         self
     }
 
     /// Reverts the visible dataset back to its initialization state order.
     pub fn sort_clear(mut self) -> Self {
+        FilterSort::sort_clear(&mut self.filter_sort);
         self.rows.sort_by_key(|(_, index, _)| *index);
         self
     }
 
     /// Swaps matching and excluded rows to isolate non-matching elements.
     pub fn filter_reverse(mut self) -> Self {
+        self.filter_sort.push(FilterSort::FilterReverse);
         std::mem::swap(&mut self.rows, &mut self.filtered_rows);
         self
     }
 
     /// Appends partitioned records back to the main visibility vector and refreshes.
     pub fn filter_clear(mut self) -> Self {
+        FilterSort::filter_clear(&mut self.filter_sort);
         self.rows.extend(self.filtered_rows);
         self.filtered_rows = Vec::new();
         self.refresh()
@@ -275,81 +329,119 @@ where
 {
     /// Sorts the internal dataset alphabetically by name using lexical sorting order.
     pub fn sort_by_name(self) -> Self {
-        self.sort_by(|a, b| a.name().cmp(b.name()))
+        let mut query = self.sort_by(|a, b| a.name().cmp(b.name()));
+        query.filter_sort.push(FilterSort::SortName);
+        query
     }
 }
 
 impl Query<Category> {
     /// Sorts categories sequentially by their operational structure type (Single vs Paired).
     pub fn sort_by_type(self) -> Self {
-        self.sort_by_key(|c| c.variant)
+        let mut query = self.sort_by_key(|c| c.variant);
+        query.filter_sort.push(FilterSort::SortType);
+        query
     }
 }
 
 impl Query<Transaction> {
     /// Sorts transactions chronologically from oldest to newest.
     pub fn sort_by_date(self) -> Self {
-        self.sort_by_key(|t| t.date)
+        let mut query = self.sort_by_key(|t| t.date);
+        query.filter_sort.push(FilterSort::SortDate);
+        query
     }
 
     /// Sorts transactions in ascending order by their numeric raw value.
     pub fn sort_by_amount(self) -> Self {
-        self.sort_by_key(|t| t.amount.value)
+        let mut query = self.sort_by_key(|t| t.amount.value);
+        query.filter_sort.push(FilterSort::SortAmount);
+        query
     }
 
     /// Sorts transactions by absolute numerical values regardless of algebraic signs.
     pub fn sort_by_abs_amount(self) -> Self {
-        self.sort_by_key(|t| t.amount.value.abs())
+        let mut query = self.sort_by_key(|t| t.amount.value.abs());
+        query.filter_sort.push(FilterSort::SortAbsAmount);
+        query
     }
 
     /// Partitions items by grouping inbound values separately from outbound flows.
     pub fn sort_by_flow(self) -> Self {
-        self.sort_by_key(|t| t.amount.value < 0)
+        let mut query = self.sort_by_key(|t| t.amount.value < 0);
+        query.filter_sort.push(FilterSort::SortFlow);
+        query
     }
 
     /// Sorts items lexically according to the descriptive label string of their tracking group.
     pub fn sort_by_group(self) -> Self {
-        self.sort_by(|a, b| a.group.name().cmp(b.group.name()))
-    }
-
-    /// Sorts items lexically matching the identifier string values of their asset accounts.
-    pub fn sort_by_fund(self) -> Self {
-        self.sort_by(|a, b| a.fund.name().cmp(b.fund.name()))
+        let mut query = self.sort_by(|a, b| a.group.name().cmp(b.group.name()));
+        query.filter_sort.push(FilterSort::SortGroup);
+        query
     }
 
     /// Sorts records alphabetically using their descriptive tracking category strings.
     pub fn sort_by_category(self) -> Self {
-        self.sort_by(|a, b| a.category.name().cmp(b.category.name()))
+        let mut query = self.sort_by(|a, b| a.category.name().cmp(b.category.name()));
+        query.filter_sort.push(FilterSort::SortCategory);
+        query
+    }
+
+    /// Sorts items lexically matching the identifier string values of their asset accounts.
+    pub fn sort_by_fund(self) -> Self {
+        let mut query = self.sort_by(|a, b| a.fund.name().cmp(b.fund.name()));
+        query.filter_sort.push(FilterSort::SortFund);
+        query
     }
 
     /// Sorts transactions alphabetically by the lexical name of their respective asset currencies.
     pub fn sort_by_currency(self) -> Self {
-        self.sort_by(|a, b| a.amount.currency.name().cmp(b.amount.currency.name()))
-    }
-
-    /// Filters the internal collection to only contain transactions belonging to the given group.
-    pub fn filter_group(self, group: &str) -> Self {
-        self.filter(|t| t.group.name() == Label::fmt(group))
-    }
-
-    /// Filters the internal collection to only contain transactions tied to the given asset fund/account.
-    pub fn filter_fund(self, fund: &str) -> Self {
-        self.filter(|t| t.fund.name() == Label::fmt(fund))
-    }
-
-    /// Filters the internal collection to only contain transactions matching the given category.
-    pub fn filter_category(self, category: &str) -> Self {
-        self.filter(|t| t.category.name() == Label::fmt(category))
-    }
-
-    /// Filters the internal collection to only contain transactions using the specified currency asset type.
-    pub fn filter_currency(self, currency: &str) -> Self {
-        self.filter(|t| t.amount.currency.name() == Label::fmt(currency))
+        let mut query = self.sort_by(|a, b| a.amount.currency.name().cmp(b.amount.currency.name()));
+        query.filter_sort.push(FilterSort::SortCurrency);
+        query
     }
 
     /// Constrains active view options to items recorded inside a bounding temporary date range.
     pub fn filter_date(self, (left, right): (Date, Date)) -> Self {
-        self.filter(|t| left <= t.date && t.date < right)
+        let mut query = self.filter(|t| left <= t.date && t.date < right);
+        query.filter_sort.push(FilterSort::FilterDate(left, right));
+        query
+    }
+
+    /// Filters the internal collection to only contain transactions belonging to the given group.
+    pub fn filter_group(self, group: &str) -> Self {
+        let formatted = Label::fmt(group);
+        let mut query = self.filter(|t| t.group.name() == formatted);
+        query.filter_sort.push(FilterSort::FilterGroup(formatted));
+        query
+    }
+
+    /// Filters the internal collection to only contain transactions matching the given category.
+    pub fn filter_category(self, category: &str) -> Self {
+        let formatted = Label::fmt(category);
+        let mut query = self.filter(|t| t.category.name() == formatted);
+        query
+            .filter_sort
+            .push(FilterSort::FilterCategory(formatted));
+        query
+    }
+
+    /// Filters the internal collection to only contain transactions tied to the given asset fund/account.
+    pub fn filter_fund(self, fund: &str) -> Self {
+        let formatted = Label::fmt(fund);
+        let mut query = self.filter(|t| t.fund.name() == formatted);
+        query.filter_sort.push(FilterSort::FilterFund(formatted));
+        query
+    }
+
+    /// Filters the internal collection to only contain transactions using the specified currency asset type.
+    pub fn filter_currency(self, currency: &str) -> Self {
+        let formatted = Label::fmt(currency);
+        let mut query = self.filter(|t| t.amount.currency.name() == formatted);
+        query
+            .filter_sort
+            .push(FilterSort::FilterCurrency(formatted));
+        query
     }
 }
 
@@ -444,6 +536,19 @@ impl FlattenableQuery for Query<Transaction> {
             Some(o) => o.to_string(),
             None => String::from("-"),
         })
+    }
+}
+
+// endregion
+
+// region: Options
+
+impl<T: HasLabel> Query<T> {
+    pub fn to_options(&self) -> Vec<String> {
+        self.rows
+            .iter()
+            .map(|(item, ..)| item.name().to_string())
+            .collect()
     }
 }
 

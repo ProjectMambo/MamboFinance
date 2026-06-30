@@ -1,34 +1,81 @@
 use std::fmt::Debug;
 
+use crossterm::event::{KeyCode, KeyEvent};
 use mambofinance_lib::user::{User, UserError};
 use ratatui::{Frame, layout::Rect};
 
-use crate::widgets::user_list::UserListState;
+use crate::{
+    app::AppContext,
+    widgets::user_list::{UserList, UserListState},
+};
 
+pub mod bottom_bar;
+pub mod pop_up;
 pub mod query_table;
 pub mod side_bar;
 pub mod user_list;
 
-pub trait PanelState: Debug {
-    fn next_wrapped(&self, len: usize, cur: usize) -> usize {
-        if cur >= len - 1 { 0 } else { cur + 1 }
+pub trait Actionable: Debug {
+    fn next_wrapped(len: usize) -> impl Fn(usize) -> usize {
+        move |cur| {
+            if cur >= len.saturating_sub(1) {
+                0
+            } else {
+                cur + 1
+            }
+        }
     }
 
-    fn prev_wrapped(&self, len: usize, cur: usize) -> usize {
-        if cur == 0 { len - 1 } else { cur - 1 }
+    fn prev_wrapped(len: usize) -> impl Fn(usize) -> usize {
+        move |cur| {
+            if cur == 0 {
+                len.saturating_sub(1)
+            } else {
+                cur - 1
+            }
+        }
     }
 
-    fn next(&mut self);
-    fn prev(&mut self);
-    fn none(&mut self);
+    fn next_capped(len: usize) -> impl Fn(usize) -> usize {
+        move |cur| (cur + 1).min(len.saturating_sub(1))
+    }
+
+    fn prev_capped() -> impl Fn(usize) -> usize {
+        |cur| cur.saturating_sub(1)
+    }
+
+    fn next(&mut self) {
+        if self.is_empty() {
+            return;
+        }
+        let i = self.selected().map_or(0, Self::next_wrapped(self.len()));
+        self.select(Some(i));
+    }
+
+    fn prev(&mut self) {
+        if self.is_empty() {
+            return;
+        }
+        let i = self
+            .selected()
+            .map_or(self.len() - 1, Self::prev_wrapped(self.len()));
+        self.select(Some(i));
+    }
+
+    fn none(&mut self) {
+        self.select(None);
+    }
+
+    fn select(&mut self, index: Option<usize>);
     fn selected(&self) -> Option<usize>;
+    fn is_empty(&self) -> bool;
+    fn len(&self) -> usize;
 }
 
-pub trait FocusState: Debug {
-    fn focus_next(&mut self);
-    fn focus_prev(&mut self);
-    fn next(&mut self);
-    fn prev(&mut self);
+pub trait PanelState: Debug {
+    fn handle_key_events(&mut self, event: KeyEvent, context: AppContext);
+    #[allow(unused_variables)]
+    fn pass(&mut self, event: KeyEvent, context: AppContext) {}
 }
 
 #[derive(Debug)]
@@ -40,7 +87,7 @@ impl TabState {
     pub fn render(&mut self, frame: &mut Frame, area: Rect) {
         match self {
             TabState::UserList(state) => {
-                frame.render_stateful_widget(state.to_widget(), area, state);
+                frame.render_stateful_widget(UserList, area, state);
             }
         }
     }
@@ -52,28 +99,10 @@ impl TabState {
     }
 }
 
-impl FocusState for TabState {
-    fn focus_next(&mut self) {
+impl PanelState for TabState {
+    fn handle_key_events(&mut self, event: KeyEvent, context: AppContext) {
         match self {
-            TabState::UserList(state) => state.focus_next(),
-        }
-    }
-
-    fn focus_prev(&mut self) {
-        match self {
-            TabState::UserList(state) => state.focus_prev(),
-        }
-    }
-
-    fn next(&mut self) {
-        match self {
-            TabState::UserList(state) => state.next(),
-        }
-    }
-
-    fn prev(&mut self) {
-        match self {
-            TabState::UserList(state) => state.prev(),
+            TabState::UserList(state) => state.handle_key_events(event, context),
         }
     }
 }
@@ -99,41 +128,27 @@ impl UIState {
         self.tabs.get_mut(self.current_tab)
     }
 
-    pub fn tab_next(&mut self) {
-        self.current_tab = if self.total_tabs == 0 {
-            0
-        } else {
-            (self.current_tab + 1).min(self.total_tabs - 1)
-        };
-    }
-
-    pub fn tab_prev(&mut self) {
-        self.current_tab = self.current_tab.saturating_sub(1);
+    fn tab(&mut self, index: usize) {
+        if index > 0 && index <= self.total_tabs {
+            self.current_tab = index - 1
+        }
     }
 }
 
-impl FocusState for UIState {
-    fn focus_next(&mut self) {
-        if let Some(tab) = self.tabs.get_mut(self.current_tab) {
-            tab.focus_next();
+impl PanelState for UIState {
+    fn handle_key_events(&mut self, event: KeyEvent, context: AppContext) {
+        match event.code {
+            _ if context.is_override() => self.pass(event, context),
+            KeyCode::Tab => self.tab(self.current_tab + 1),
+            KeyCode::BackTab => self.tab(self.current_tab - 1),
+            KeyCode::Char('1') => self.tab(1),
+            KeyCode::Char('2') => self.tab(2),
+            _ => self.pass(event, context),
         }
     }
-
-    fn focus_prev(&mut self) {
-        if let Some(tab) = self.tabs.get_mut(self.current_tab) {
-            tab.focus_prev();
-        }
-    }
-
-    fn next(&mut self) {
-        if let Some(tab) = self.tabs.get_mut(self.current_tab) {
-            tab.next()
-        }
-    }
-
-    fn prev(&mut self) {
-        if let Some(tab) = self.tabs.get_mut(self.current_tab) {
-            tab.prev()
+    fn pass(&mut self, event: KeyEvent, context: AppContext) {
+        if let Some(tab) = self.get_mut() {
+            tab.handle_key_events(event, context);
         }
     }
 }

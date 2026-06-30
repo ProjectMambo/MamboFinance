@@ -1,20 +1,20 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use crossterm::event::{KeyCode, KeyEvent};
 use mambofinance_lib::user::{
-    Category, Currency, FieldVariant, FlattenableQuery, Fund, Group, Header, Matrix, Query,
-    Transaction, User, UserError,
+    Category, Currency, FieldVariant, FlattenableQuery, Fund, Group, Query, Transaction, User,
+    UserError,
 };
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Cell, Row, StatefulWidget, Table, TableState};
 
-use crate::widgets::PanelState;
+use crate::app::AppContext;
+use crate::widgets::{Actionable, PanelState};
 
 const COLUMN_THRESHOLD: usize = 4;
 
 pub struct QueryTable<T> {
-    items: Matrix,
-    headers: Vec<Header>,
     _marker: PhantomData<T>,
 }
 
@@ -22,31 +22,32 @@ impl<T: Fetchable> QueryTable<T>
 where
     Query<T>: FlattenableQuery,
 {
-    pub fn new(query: &Query<T>) -> Self {
-        let items = query.flatten();
-        let headers = query.headers.clone();
+    pub fn new() -> Self {
         Self {
-            items,
-            headers,
             _marker: PhantomData,
         }
     }
 }
 
-impl<T: Fetchable> StatefulWidget for QueryTable<T> {
+impl<T: Fetchable> StatefulWidget for QueryTable<T>
+where
+    Query<T>: FlattenableQuery,
+{
     type State = QueryTableState<T>;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State)
     where
         Self: Sized,
     {
-        let rows: Vec<Row> = self
-            .items
+        let rows: Vec<Row> = state
+            .query
+            .flatten()
             .into_iter()
             .map(|r| Row::new(r.into_iter().map(Cell::from)))
             .collect();
 
-        let (mut headers, mut widths): (Vec<String>, Vec<Constraint>) = self
+        let (mut headers, mut widths): (Vec<String>, Vec<Constraint>) = state
+            .query
             .headers
             .iter()
             .map(|(s, w, v)| {
@@ -104,10 +105,6 @@ where
         })
     }
 
-    pub fn to_widget(&self) -> QueryTable<T> {
-        QueryTable::new(&self.query)
-    }
-
     pub fn update_data(&mut self, user: &User) -> Result<(), UserError> {
         if self.need_query {
             self.query = T::fetch(user)?;
@@ -117,34 +114,36 @@ where
     }
 }
 
-impl<T: Debug> PanelState for QueryTableState<T> {
-    fn next(&mut self) {
-        if self.query.is_empty() {
-            return;
-        }
-        let i = self
-            .state
-            .selected()
-            .map_or(0, |cur| self.next_wrapped(self.query.len(), cur));
-        self.state.select(Some(i));
-    }
-
-    fn prev(&mut self) {
-        if self.query.is_empty() {
-            return;
-        }
-        let i = self.state.selected().map_or(self.query.len() - 1, |cur| {
-            self.prev_wrapped(self.query.len(), cur)
-        });
-        self.state.select(Some(i));
-    }
-
-    fn none(&mut self) {
-        self.state.select(None);
+impl<T: Debug> Actionable for QueryTableState<T> {
+    fn select(&mut self, index: Option<usize>) {
+        self.state.select(index);
     }
 
     fn selected(&self) -> Option<usize> {
         self.state.selected()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.query.is_empty()
+    }
+
+    fn len(&self) -> usize {
+        self.query.len()
+    }
+}
+
+impl<T: Debug> PanelState for QueryTableState<T> {
+    fn handle_key_events(
+        &mut self,
+        event: KeyEvent,
+        #[allow(unused_variables)] context: AppContext,
+    ) {
+        match event.code {
+            _ if context.is_override() => self.pass(event, context),
+            KeyCode::Up | KeyCode::Char('k') => self.prev(),
+            KeyCode::Down | KeyCode::Char('j') => self.next(),
+            _ => self.pass(event, context),
+        }
     }
 }
 

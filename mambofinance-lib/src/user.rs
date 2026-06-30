@@ -23,9 +23,9 @@ use uuid::Uuid;
 use crate::user::InputError::WrongVariant;
 
 /// Maximum character length limit for names.
-pub const NAME_LIMIT: usize = 20;
+pub const NAME_LIMIT: usize = 15;
 /// Maximum character length limit for descriptions.
-pub const DESC_LIMIT: usize = 25;
+pub const DESC_LIMIT: usize = 20;
 /// Maximum character length limit for amount strings.
 pub const AMOUNT_LIMIT: usize = 10;
 /// Maximum character length limit for variant string names.
@@ -37,6 +37,63 @@ pub struct User {
     name: String,
     conn: Connection,
 }
+
+// region: Type & Enum & Trait
+
+pub trait Wrappable {
+    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a>
+    where
+        Self: Sized;
+}
+
+pub enum UserQuery<'a> {
+    Transaction(&'a Query<Transaction>),
+    Group(&'a Query<Group>),
+    Category(&'a Query<Category>),
+    Fund(&'a Query<Fund>),
+    Currency(&'a Query<Currency>),
+}
+
+impl<'a> UserQuery<'a> {
+    pub fn wrap<T>(query: &'a Query<T>) -> UserQuery<'a>
+    where
+        T: Wrappable,
+    {
+        T::wrap_query(query)
+    }
+}
+
+impl Wrappable for Transaction {
+    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
+        UserQuery::Transaction(query)
+    }
+}
+
+impl Wrappable for Group {
+    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
+        UserQuery::Group(query)
+    }
+}
+
+impl Wrappable for Category {
+    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
+        UserQuery::Category(query)
+    }
+}
+
+impl Wrappable for Fund {
+    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
+        UserQuery::Fund(query)
+    }
+}
+
+impl Wrappable for Currency {
+    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
+        UserQuery::Currency(query)
+    }
+}
+
+// endregion
 
 // region: Error
 
@@ -389,60 +446,7 @@ impl User {
 
 // endregion
 
-// region: Wrap & Delete & Edit
-
-pub trait Wrappable {
-    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a>
-    where
-        Self: Sized;
-}
-
-impl Wrappable for Transaction {
-    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
-        UserQuery::Transaction(query)
-    }
-}
-
-impl Wrappable for Group {
-    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
-        UserQuery::Group(query)
-    }
-}
-
-impl Wrappable for Category {
-    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
-        UserQuery::Category(query)
-    }
-}
-
-impl Wrappable for Fund {
-    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
-        UserQuery::Fund(query)
-    }
-}
-
-impl Wrappable for Currency {
-    fn wrap_query<'a>(query: &'a Query<Self>) -> UserQuery<'a> {
-        UserQuery::Currency(query)
-    }
-}
-
-pub enum UserQuery<'a> {
-    Transaction(&'a Query<Transaction>),
-    Group(&'a Query<Group>),
-    Category(&'a Query<Category>),
-    Fund(&'a Query<Fund>),
-    Currency(&'a Query<Currency>),
-}
-
-impl<'a> UserQuery<'a> {
-    pub fn wrap<T>(query: &'a Query<T>) -> UserQuery<'a>
-    where
-        T: Wrappable,
-    {
-        T::wrap_query(query)
-    }
-}
+// region: Delete & Edit
 
 impl User {
     /// Permanently deletes the entity at the given query row index from its database table.
