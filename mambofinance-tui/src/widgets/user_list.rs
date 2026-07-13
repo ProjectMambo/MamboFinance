@@ -13,7 +13,7 @@ use crate::{
     widgets::{
         Actionable, PanelState,
         bottom_bar::{BottomBar, Hintable},
-        pop_up::{PopUp, PopUpState},
+        pop_up::{PopUp, PopUpState, Popable},
         query_table::{QueryTable, QueryTableState},
         side_bar::{SideBar, SideBarState},
     },
@@ -117,7 +117,7 @@ impl StatefulWidget for UserList {
         StatefulWidget::render(SideBar, h_chunks[0], buf, &mut state.sidebar_state);
         state.table_state.render(table_area, buf);
 
-        if state.pop {
+        if state.is_pop() {
             let popup_split =
                 Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
                     .split(table_area);
@@ -191,41 +191,30 @@ impl UserListState {
             .try_for_each(|t| t.update_data(user))
     }
 
-    fn esc(&mut self, context: AppContext) {
-        if self.pop {
-            context.input(false);
-            self.prev();
-            self.pop = false;
-        }
+    fn esc(&mut self) {
+        self.pop(false)
     }
 
-    fn add(&mut self, context: AppContext) {
-        context.input(true);
-        self.popup_state = self.table_state.to_popup(context.user);
-        self.pop = true;
-        self.next();
-        self.popup_state.next();
+    fn add(&mut self, user: &User) {
+        self.popup_state = self.table_state.to_popup(user);
+        self.popup_state.open();
+        self.pop(true)
     }
 }
 
 impl Actionable for UserListState {
     fn next(&mut self) {
-        let index = match self.selected() {
-            Some(0) if !self.pop => {
-                self.table_state.next();
-                Some(1)
-            }
-            Some(_) => Some(1),
-            None => Some(0),
-        };
-        self.select(index);
+        if self.is_first() {
+            self.table_state.next();
+        }
+        self.select(self.next_capped());
     }
 
     fn prev(&mut self) {
-        if self.selected().is_some() && !self.pop {
+        if self.is_last() {
             self.table_state.none();
         }
-        self.select(Some(0));
+        self.select(self.prev_capped());
     }
 
     fn select(&mut self, index: Option<usize>) {
@@ -246,38 +235,47 @@ impl Actionable for UserListState {
 }
 
 impl PanelState for UserListState {
-    fn handle_key_events(&mut self, event: KeyEvent, context: AppContext) {
-        match event.code {
-            KeyCode::Esc if self.pop => self.esc(context),
-            _ if context.is_override() => self.pass(event, context),
-            KeyCode::Left | KeyCode::Char('h') => self.prev(),
-            KeyCode::Right | KeyCode::Char('l') => self.next(),
-            KeyCode::Char('a') => self.add(context),
-            _ => self.pass(event, context),
+    fn handle_key_events(&mut self, event: KeyEvent, context: &AppContext) -> bool {
+        if !self.pass(event, context) {
+            match event.code {
+                KeyCode::Esc => self.esc(),
+                KeyCode::Char('a') => self.add(context.user),
+                KeyCode::Left | KeyCode::Char('h') => self.prev(),
+                KeyCode::Right | KeyCode::Char('l') => self.next(),
+                _ => return false,
+            }
+        }
+        true
+    }
+
+    fn pass(&mut self, event: KeyEvent, context: &AppContext) -> bool {
+        match self.selected() {
+            Some(_) if self.is_pop() => self.popup_state.handle_key_events(event, context),
+            Some(0) => {
+                let handled = self.sidebar_state.handle_key_events(event, context);
+                self.update();
+                handled
+            }
+            Some(1) => self.table_state.handle_key_events(event, context),
+            _ => false,
         }
     }
 
-    fn pass(&mut self, event: KeyEvent, context: AppContext) {
-        match self.focused {
-            Some(0) | None => {
-                self.sidebar_state.handle_key_events(event, context);
-                self.update();
-            }
-            Some(1) => {
-                if self.pop {
-                    self.popup_state.handle_key_events(event, context);
-                } else {
-                    self.table_state.handle_key_events(event, context);
-                }
+    /*fn handle_ui_events(&mut self, event: UIEvent, context: AppContext) -> bool {
+        match event {
+            UIEvent::PopUp(PopUpEvent::Add) => {
+                context
+                    .user
+                    .add_transaction(name, description, _, _, group, category, fund)
             }
             _ => {}
         }
-    }
+    }*/
 }
 
 impl Hintable for UserListState {
     fn hint(&mut self) -> &[(&str, &str)] {
-        if self.pop {
+        if self.is_pop() {
             self.popup_state.hint()
         } else {
             HINT_ITEMS
@@ -285,10 +283,21 @@ impl Hintable for UserListState {
     }
 }
 
+impl Popable for UserListState {
+    fn is_pop(&self) -> bool {
+        self.pop
+    }
+
+    fn pop(&mut self, pop: bool) {
+        self.pop = pop
+    }
+}
+
 // endregion
 
 // region: ActiveTable
 
+// wrapper to manage all defined query table state
 #[derive(Debug)]
 pub enum ActiveTableState {
     Transactions(QueryTableState<Transaction>),
@@ -299,6 +308,7 @@ pub enum ActiveTableState {
     None,
 }
 
+// macro for behaviour passing down to wrapped contents
 macro_rules! map {
     ($self:expr, $wrapper:ident => $action:expr) => {
         map!($self, $wrapper => $action, {})
@@ -327,10 +337,11 @@ impl ActiveTableState {
     }
 
     pub fn update_data(&mut self, user: &User) -> Result<(), UserError> {
-        map!(self, w => { return w.update_data(user); });
+        map!(self, w => return w.update_data(user));
         Ok(())
     }
 
+    // get the popup state of corresponding table
     pub fn to_popup(&self, user: &User) -> PopUpState {
         match self {
             ActiveTableState::Transactions(..) => {
@@ -374,8 +385,8 @@ impl Actionable for ActiveTableState {
 }
 
 impl PanelState for ActiveTableState {
-    fn handle_key_events(&mut self, event: KeyEvent, context: AppContext) {
-        map!(self, w => w.handle_key_events(event,context))
+    fn handle_key_events(&mut self, event: KeyEvent, context: &AppContext) -> bool {
+        map!(self, w => w.handle_key_events(event,context), false)
     }
 }
 

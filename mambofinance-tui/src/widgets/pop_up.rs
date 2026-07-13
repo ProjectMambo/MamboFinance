@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::{
     app::AppContext,
-    widgets::{Actionable, PanelState, bottom_bar::Hintable},
+    widgets::{Actionable, Focusable, Gettable, PanelState, UIEvent, bottom_bar::Hintable},
 };
 
 pub const HINT_HORI: &[(&str, &str)] = &[
@@ -104,16 +104,8 @@ impl EntryState {
         self
     }
 
-    pub fn focus(&mut self) {
-        self.focused = true;
-    }
-
-    pub fn unfocus(&mut self) {
-        self.focused = false;
-    }
-
     fn border_style(&self) -> Style {
-        if self.focused {
+        if self.is_focus() {
             Style::default().fg(Color::Cyan)
         } else {
             Style::default().fg(Color::White)
@@ -189,6 +181,18 @@ impl EntryState {
 }
 
 impl Actionable for EntryState {
+    fn next(&mut self) {
+        if !self.is_empty() {
+            self.select(self.next_capped());
+        }
+    }
+
+    fn prev(&mut self) {
+        if !self.is_empty() {
+            self.select(self.prev_capped());
+        }
+    }
+
     fn select(&mut self, index: Option<usize>) {
         self.selected = index;
     }
@@ -204,21 +208,14 @@ impl Actionable for EntryState {
     fn len(&self) -> usize {
         self.options.len()
     }
+}
 
-    fn next(&mut self) {
-        if self.is_empty() {
-            return;
-        }
-        let i = self.selected().map_or(0, Self::next_capped(self.len()));
-        self.select(Some(i));
+impl Focusable for EntryState {
+    fn is_focus(&self) -> bool {
+        self.focused
     }
-
-    fn prev(&mut self) {
-        if self.is_empty() {
-            return;
-        }
-        let i = self.selected().map_or(0, Self::prev_capped());
-        self.select(Some(i));
+    fn set_focus(&mut self, focus: bool) {
+        self.focused = focus
     }
 }
 
@@ -226,8 +223,9 @@ impl PanelState for EntryState {
     fn handle_key_events(
         &mut self,
         event: KeyEvent,
-        #[allow(unused_variables)] context: AppContext,
-    ) {
+        #[allow(unused_variables)] context: &AppContext,
+    ) -> bool {
+        // consume every key to lock input to pop up
         match self.config.kind {
             EntryKind::HorizontalOption => match event.code {
                 KeyCode::Char(c) => self.value.push(c),
@@ -236,7 +234,7 @@ impl PanelState for EntryState {
                 }
                 KeyCode::Left => self.prev(),
                 KeyCode::Right => self.next(),
-                _ => self.pass(event, context),
+                _ => return false,
             },
             EntryKind::VerticalOption => match event.code {
                 KeyCode::Char(c) => self.value.push(c),
@@ -245,7 +243,7 @@ impl PanelState for EntryState {
                 }
                 KeyCode::Up => self.prev(),
                 KeyCode::Down => self.next(),
-                _ => self.pass(event, context),
+                _ => return false,
             },
             EntryKind::Input => match event.code {
                 KeyCode::Char(c) => self.value.push(c),
@@ -255,9 +253,10 @@ impl PanelState for EntryState {
                 KeyCode::Backspace => {
                     self.value.pop();
                 }
-                _ => self.pass(event, context),
+                _ => return false,
             },
         }
+        true
     }
 }
 
@@ -281,41 +280,7 @@ impl RowState {
     pub fn new(entries: Vec<EntryState>) -> Self {
         Self {
             entries,
-            focused: None,
-        }
-    }
-
-    pub fn focus_last(&mut self) {
-        let last = self.entries.len().saturating_sub(1);
-        self.select(Some(last));
-    }
-
-    pub fn unfocus_all(&mut self) {
-        if let Some(i) = self.focused
-            && let Some(e) = self.entries.get_mut(i)
-        {
-            e.unfocus();
-        }
-        self.focused = None;
-    }
-
-    pub fn next_entry(&mut self) -> bool {
-        let next = self.focused.map_or(0, |i| i + 1);
-        if next < self.len() {
-            self.select(Some(next));
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn prev_entry(&mut self) -> bool {
-        match self.focused {
-            Some(0) | None => false,
-            Some(i) => {
-                self.select(Some(i - 1));
-                true
-            }
+            focused: Some(0),
         }
     }
 
@@ -334,17 +299,9 @@ impl RowState {
 
 impl Actionable for RowState {
     fn select(&mut self, index: Option<usize>) {
-        if let Some(i) = self.selected()
-            && let Some(e) = self.entries.get_mut(i)
-        {
-            e.unfocus();
-        }
+        self.unfocus();
         self.focused = index;
-        if let Some(i) = self.selected()
-            && let Some(e) = self.entries.get_mut(i)
-        {
-            e.focus();
-        }
+        self.focus();
     }
 
     fn selected(&self) -> Option<usize> {
@@ -360,16 +317,58 @@ impl Actionable for RowState {
     }
 }
 
+impl Focusable for RowState {
+    fn is_focus(&self) -> bool {
+        if let Some(entry) = self.get() {
+            entry.is_focus()
+        } else {
+            false
+        }
+    }
+    fn set_focus(&mut self, focus: bool) {
+        if let Some(entry) = self.get_mut() {
+            entry.set_focus(focus);
+        }
+    }
+    fn focus(&mut self) {
+        self.unfocus();
+        self.set_focus(true);
+    }
+    fn unfocus(&mut self) {
+        self.entries.iter_mut().map(Focusable::unfocus).collect()
+    }
+}
+
+impl Gettable<EntryState> for RowState {
+    fn get(&self) -> Option<&EntryState> {
+        self.selected().and_then(|i| self.entries.get(i))
+    }
+    fn get_mut(&mut self) -> Option<&mut EntryState> {
+        self.selected().and_then(|i| self.entries.get_mut(i))
+    }
+}
+
 impl PanelState for RowState {
-    fn handle_key_events(&mut self, event: KeyEvent, context: AppContext) {
-        self.pass(event, context);
+    fn handle_key_events(&mut self, event: KeyEvent, context: &AppContext) -> bool {
+        if !self.pass(event, context) {
+            match event.code {
+                KeyCode::Tab | KeyCode::Enter => {
+                    self.next();
+                }
+                KeyCode::BackTab => {
+                    self.prev();
+                }
+                _ => return false,
+            }
+        }
+        true
     }
 
-    fn pass(&mut self, event: KeyEvent, context: AppContext) {
-        if let Some(i) = self.selected()
-            && let Some(entry) = self.entries.get_mut(i)
-        {
-            entry.handle_key_events(event, context);
+    fn pass(&mut self, event: KeyEvent, context: &AppContext) -> bool {
+        if let Some(entry) = self.get_mut() {
+            entry.handle_key_events(event, context)
+        } else {
+            false
         }
     }
 }
@@ -390,114 +389,25 @@ impl Hintable for RowState {
 // region: Row
 
 #[derive(Debug, Clone)]
-pub enum PopUpRow {
-    Single(EntryState),
-    Multi(RowState),
-    Inter(Vec<EntryState>),
+pub struct PopUpBuilder {
+    entries: Vec<EntryState>,
 }
 
-impl Default for PopUpRow {
+impl Default for PopUpBuilder {
     fn default() -> Self {
-        PopUpRow::Inter(Vec::new())
+        Self::new()
     }
 }
 
-impl PopUpRow {
-    pub fn inter() -> Self {
-        PopUpRow::Inter(Vec::new())
-    }
-
-    pub fn complete(self) -> Self {
-        if let PopUpRow::Inter(mut states) = self {
-            match states.len() {
-                0 => unreachable!("Empty intermediate shouldn't be possible"),
-                1 => {
-                    return PopUpRow::Single(
-                        states.pop().expect("Intermediate should have 1 element"),
-                    );
-                }
-                _ => {
-                    return PopUpRow::Multi(RowState::new(states));
-                }
-            }
-        }
-        self
-    }
-
-    pub fn focus(&mut self) {
-        match self {
-            PopUpRow::Single(e) => e.focus(),
-            PopUpRow::Multi(r) => {
-                if r.selected().is_none() {
-                    r.select(Some(0));
-                }
-            }
-            _ => unreachable!("This is an intermediate"),
+impl PopUpBuilder {
+    pub fn new() -> Self {
+        Self {
+            entries: Vec::new(),
         }
     }
 
-    pub fn focus_last(&mut self) {
-        match self {
-            PopUpRow::Single(e) => e.focus(),
-            PopUpRow::Multi(r) => r.focus_last(),
-            _ => unreachable!("This is an intermediate"),
-        }
-    }
-
-    pub fn unfocus(&mut self) {
-        match self {
-            PopUpRow::Single(e) => e.unfocus(),
-            PopUpRow::Multi(r) => r.unfocus_all(),
-            _ => unreachable!("This is an intermediate"),
-        }
-    }
-
-    pub fn next_inner(&mut self) -> bool {
-        match self {
-            PopUpRow::Single(_) => false,
-            PopUpRow::Multi(r) => r.next_entry(),
-            _ => unreachable!("This is an intermediate"),
-        }
-    }
-
-    pub fn prev_inner(&mut self) -> bool {
-        match self {
-            PopUpRow::Single(_) => false,
-            PopUpRow::Multi(r) => r.prev_entry(),
-            _ => unreachable!("This is an intermediate"),
-        }
-    }
-
-    pub fn render(&self, area: Rect, buf: &mut Buffer) {
-        match self {
-            PopUpRow::Single(e) => e.render(area, buf),
-            PopUpRow::Multi(r) => r.render(area, buf),
-            _ => unreachable!("This is an intermediate"),
-        }
-    }
-}
-
-impl PanelState for PopUpRow {
-    fn handle_key_events(&mut self, event: KeyEvent, context: AppContext) {
-        self.pass(event, context);
-    }
-
-    fn pass(&mut self, event: KeyEvent, context: AppContext) {
-        match self {
-            PopUpRow::Single(e) => e.handle_key_events(event, context),
-            PopUpRow::Multi(r) => r.handle_key_events(event, context),
-            _ => unreachable!("This is an intermediate"),
-        }
-    }
-}
-
-impl Hintable for PopUpRow {
-    fn hint(&mut self) -> &[(&str, &str)] {
-        match self {
-            PopUpRow::Single(e) => e.hint(),
-            PopUpRow::Multi(r) => r.hint(),
-            _ => unreachable!("This is an intermediate"),
-        }
+    pub fn complete(self) -> RowState {
+        RowState::new(self.entries)
     }
 }
 
@@ -530,8 +440,9 @@ impl StatefulWidget for PopUp {
 #[derive(Debug)]
 pub struct PopUpState {
     pub title: String,
-    pub rows: Vec<PopUpRow>,
+    pub rows: Vec<RowState>,
     focused: Option<usize>,
+    builder: Option<PopUpBuilder>,
 }
 
 impl PopUpState {
@@ -539,28 +450,33 @@ impl PopUpState {
         Self {
             title: title.into(),
             rows: Vec::new(),
-            focused: None,
+            focused: Some(0),
+            builder: None,
         }
+    }
+
+    pub fn open(&mut self) {
+        self.select(Some(0));
     }
 
     pub fn row(&mut self) -> &mut Self {
         self.complete();
-        self.rows.push(PopUpRow::inter());
+        self.builder = Some(PopUpBuilder::new());
         self
     }
 
     pub fn complete(&mut self) -> &mut Self {
-        if let Some(PopUpRow::Inter(_)) = self.rows.last()
-            && let Some(row) = self.rows.last_mut()
-        {
-            *row = std::mem::take(row).complete();
+        if let Some(builder) = self.builder.take() {
+            self.rows.push(builder.complete());
         }
         self
     }
 
     pub fn input(&mut self, header: impl Into<String>) -> &mut Self {
-        if let PopUpRow::Inter(states) = self.safe_row() {
-            states.push(EntryState::new(EntryConfig::input(header)))
+        if let Some(builder) = self.safe_row() {
+            builder
+                .entries
+                .push(EntryState::new(EntryConfig::input(header)))
         }
         self
     }
@@ -570,13 +486,12 @@ impl PopUpState {
         header: impl Into<String>,
         options: Option<impl IntoIterator<Item = impl Into<String>>>,
     ) -> &mut Self {
-        if let PopUpRow::Inter(states) = self.safe_row() {
-            match options {
-                Some(to_options) => states.push(
-                    EntryState::new(EntryConfig::horizontal(header)).with_options(to_options),
-                ),
-                None => states.push(EntryState::new(EntryConfig::horizontal(header))),
+        if let Some(builder) = self.safe_row() {
+            let mut entry = EntryState::new(EntryConfig::horizontal(header));
+            if let Some(opts) = options {
+                entry = entry.with_options(opts);
             }
+            builder.entries.push(entry);
         }
         self
     }
@@ -586,61 +501,41 @@ impl PopUpState {
         header: impl Into<String>,
         options: Option<impl IntoIterator<Item = impl Into<String>>>,
     ) -> &mut Self {
-        if let PopUpRow::Inter(states) = self.safe_row() {
-            match options {
-                Some(to_options) => states
-                    .push(EntryState::new(EntryConfig::vertical(header)).with_options(to_options)),
-                None => states.push(EntryState::new(EntryConfig::vertical(header))),
+        if let Some(builder) = self.safe_row() {
+            let mut entry = EntryState::new(EntryConfig::vertical(header));
+            if let Some(opts) = options {
+                entry = entry.with_options(opts);
             }
+            builder.entries.push(entry);
         }
         self
     }
 
-    fn safe_row(&mut self) -> &mut PopUpRow {
-        if self.rows.is_empty() || !matches!(self.rows.last(), Some(PopUpRow::Inter(_))) {
+    fn safe_row(&mut self) -> &mut Option<PopUpBuilder> {
+        if self.is_empty() && self.builder.is_none() {
             self.row();
         }
-        match self.rows.last_mut() {
-            Some(row) => row,
-            None => unreachable!("Rows were just ensured to be non-empty"),
-        }
+        &mut self.builder
     }
 }
 
 impl Actionable for PopUpState {
     fn next(&mut self) {
-        if self.is_empty() {
-            return;
+        if !self.is_empty() {
+            self.select(self.next_capped());
         }
-        let i = self.selected().map_or(0, Self::next_capped(self.len()));
-        self.select(Some(i));
     }
 
     fn prev(&mut self) {
-        if self.is_empty() {
-            return;
+        if !self.is_empty() {
+            self.select(self.prev_capped());
         }
-        let i = self.selected().map_or(self.len() - 1, Self::prev_capped());
-        self.select(Some(i));
     }
 
     fn select(&mut self, index: Option<usize>) {
-        let ori = self.selected();
-        if let Some(i) = self.selected()
-            && let Some(row) = self.rows.get_mut(i)
-        {
-            row.unfocus();
-        }
+        self.unfocus();
         self.focused = index;
-        if let Some(i) = self.selected()
-            && let Some(row) = self.rows.get_mut(i)
-        {
-            if ori < index {
-                row.focus();
-            } else {
-                row.focus_last();
-            }
-        }
+        self.focus();
     }
 
     fn selected(&self) -> Option<usize> {
@@ -654,55 +549,121 @@ impl Actionable for PopUpState {
     fn len(&self) -> usize {
         self.rows.len()
     }
+
+    fn is_last(&self) -> bool {
+        if let Some(entry) = self.get() {
+            self.selected() == self.last() && entry.is_last()
+        } else {
+            false
+        }
+    }
+}
+
+impl Focusable for PopUpState {
+    fn is_focus(&self) -> bool {
+        if let Some(entry) = self.get() {
+            entry.is_focus()
+        } else {
+            false
+        }
+    }
+    fn set_focus(&mut self, focus: bool) {
+        if let Some(entry) = self.get_mut() {
+            entry.set_focus(focus);
+        }
+    }
+    fn focus(&mut self) {
+        self.unfocus();
+        self.set_focus(true);
+    }
+    fn unfocus(&mut self) {
+        self.rows.iter_mut().map(Focusable::unfocus).collect()
+    }
+}
+
+impl Gettable<RowState> for PopUpState {
+    fn get(&self) -> Option<&RowState> {
+        self.selected().and_then(|i| self.rows.get(i))
+    }
+    fn get_mut(&mut self) -> Option<&mut RowState> {
+        self.selected().and_then(|i| self.rows.get_mut(i))
+    }
 }
 
 impl PanelState for PopUpState {
-    fn handle_key_events(&mut self, event: KeyEvent, context: AppContext) {
+    fn handle_key_events(&mut self, event: KeyEvent, context: &AppContext) -> bool {
+        if event.code == KeyCode::Esc {
+            return false;
+        }
+        // handle pass inside for correct highlighting between different entries with next and prev
+        // absorb everything except esc to lock input to pop up
         match event.code {
+            KeyCode::Enter if self.is_last() => {
+                context
+                    .event_sender
+                    .send(UIEvent::PopUp(PopUpEvent::Add))
+                    .unwrap();
+            }
             KeyCode::Tab | KeyCode::Enter => {
-                let absorbed = self
-                    .selected()
-                    .and_then(|i| self.rows.get_mut(i))
-                    .map(|r| r.next_inner())
-                    .unwrap_or(false);
-
-                if !absorbed {
-                    self.next();
+                if let Some(row) = self.get_mut()
+                    && row.is_last()
+                {
+                    self.next()
+                } else {
+                    self.pass(event, context);
                 }
             }
             KeyCode::BackTab => {
-                let absorbed = self
-                    .selected()
-                    .and_then(|i| self.rows.get_mut(i))
-                    .map(|r| r.prev_inner())
-                    .unwrap_or(false);
-
-                if !absorbed {
-                    self.prev();
+                if let Some(row) = self.get_mut()
+                    && row.is_first()
+                {
+                    self.prev()
+                } else {
+                    self.pass(event, context);
                 }
             }
-            _ => self.pass(event, context),
+            _ => {
+                self.pass(event, context);
+            }
         }
+        true
     }
 
-    fn pass(&mut self, event: KeyEvent, context: AppContext) {
-        if let Some(i) = self.selected()
-            && let Some(row) = self.rows.get_mut(i)
-        {
-            row.handle_key_events(event, context);
+    fn pass(&mut self, event: KeyEvent, context: &AppContext) -> bool {
+        if let Some(row) = self.get_mut() {
+            row.handle_key_events(event, context)
+        } else {
+            false
         }
     }
 }
 
 impl Hintable for PopUpState {
     fn hint(&mut self) -> &[(&str, &str)] {
-        if let Some(i) = self.selected()
-            && let Some(row) = self.rows.get_mut(i)
-        {
+        if let Some(row) = self.get_mut() {
             return row.hint();
         }
         Self::empty()
     }
+}
+
+// endregion
+
+// region: Popable
+
+pub trait Popable {
+    fn is_pop(&self) -> bool;
+    fn pop(&mut self, pop: bool);
+}
+
+// endregion
+
+// region: PopUpEvent
+
+pub enum PopUpEvent {
+    Add,
+    Edit,
+    Delete,
 }
 
 // endregion

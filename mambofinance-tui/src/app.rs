@@ -1,16 +1,17 @@
-use std::cell::Cell;
+use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
 use color_eyre::Result;
 use mambofinance_lib::user::{User, UserError};
 use ratatui::DefaultTerminal;
+use std::sync::mpsc;
 
-use crate::widgets::{TabState, UIState, user_list::UserListState};
+use crate::widgets::{Gettable, TabState, UIEvent, UIState, user_list::UserListState};
 
 #[derive(Debug)]
 pub struct App {
     pub user: User,
     pub ui_state: UIState,
-    pub input_override: Cell<bool>,
+    pub event_handler: (Sender<UIEvent>, Receiver<UIEvent>),
     pub should_quit: bool,
 }
 
@@ -26,16 +27,14 @@ impl App {
         Ok(App {
             user,
             ui_state,
-            input_override: Cell::new(false),
+            event_handler: mpsc::channel::<UIEvent>(),
             should_quit: false,
         })
     }
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         test_user_flow(&self.user)?;
-        for _ in 0..20 {
-            test_add_transaction(&self.user)?;
-        }
+        test_add_transaction(&self.user)?;
 
         if let Some(tab) = self.ui_state.get_mut() {
             tab.update_data(&self.user)?;
@@ -47,21 +46,15 @@ impl App {
         }
         Ok(())
     }
+
+    pub fn event(&self) -> std::result::Result<UIEvent, TryRecvError> {
+        self.event_handler.1.try_recv()
+    }
 }
 
 pub struct AppContext<'a> {
     pub user: &'a mut User,
-    pub input_override: &'a Cell<bool>,
-}
-
-impl<'a> AppContext<'a> {
-    pub fn is_override(&self) -> bool {
-        self.input_override.get()
-    }
-
-    pub fn input(&self, is_override: bool) {
-        self.input_override.set(is_override);
-    }
+    pub event_sender: Sender<UIEvent>,
 }
 
 fn test_user_flow(user: &User) -> Result<(), UserError> {

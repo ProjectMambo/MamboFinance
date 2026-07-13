@@ -85,13 +85,13 @@ impl PanelState for SideBarState {
     fn handle_key_events(
         &mut self,
         event: KeyEvent,
-        #[allow(unused_variables)] context: AppContext,
-    ) {
+        #[allow(unused_variables)] context: &AppContext,
+    ) -> bool {
         match event.code {
-            _ if context.is_override() => self.pass(event, context),
             KeyCode::Up | KeyCode::Char('k') => self.prev(),
             KeyCode::Down | KeyCode::Char('j') => self.next(),
-            _ => self.pass(event, context),
+            _ => return false,
         }
+        true
     }
 }

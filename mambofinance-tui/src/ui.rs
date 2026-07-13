@@ -5,6 +5,7 @@ use ratatui::{
 };
 
 use crate::app::App;
+use crate::widgets::Gettable;
 
 pub fn render(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()

@@ -52,6 +52,7 @@ impl Widget for BottomBar {
     }
 }
 
+// trait for getting bottom bar hints, widgets should handle child widgets hint() if they impl this trait
 pub trait Hintable {
     fn hint(&mut self) -> &[(&str, &str)];
 
