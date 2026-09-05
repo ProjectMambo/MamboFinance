@@ -21,7 +21,7 @@ MamboFinance is an experimental local finance ledger written in Rust. Its librar
 | Read the canonical Wiki documentation | [projectmambo.org/mambofinance/](https://projectmambo.org/mambofinance/) |
 | Understand storage and code boundaries | [Architecture](Architecture.md) |
 | Run and operate the current prototype | [TUI Guide](TUI%20Guide.md) |
-| Inspect the source | [`mambofinance-lib/`](../mambofinance-lib/) and [`mambofinance-tui/`](../mambofinance-tui/) |
+| Inspect the source | [`mambofinance-lib/`](mambofinance-lib/) and [`mambofinance-tui/`](mambofinance-tui/) |
 
 ## Current capabilities
 
@@ -79,5 +79,5 @@ This is a personal finance project, so external pull requests are not currently 
 
 MamboFinance is dual-licensed under the GNU AGPLv3 and a commercial license:
 
-- [LICENSE-AGPL](../LICENSE-AGPL)
-- [LICENSE-COMMERCIAL](../LICENSE-COMMERCIAL.pdf) — draft, for informational purposes only
+- [LICENSE-AGPL](LICENSE-AGPL)
+- [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL.pdf) — draft, for informational purposes only
