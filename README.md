@@ -1,28 +1,80 @@
 # MamboFinance
+
 <p align="left">
   <img src="https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white" alt="Rust" />
   <img src="https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" />
   <img src="https://img.shields.io/badge/Ratatui-FA5A5A?style=flat-square&logo=ratatui&logoColor=white" alt="Ratatui" />
 </p>
 <p align="left">
-  <img src="https://img.shields.io/badge/Maintenance-Active-brightgreen?style=flat-square" />
-  <img src="https://img.shields.io/github/last-commit/ProjectMambo/MamboFinance?style=flat-square&color=7a5fff" />
-  <img src="https://img.shields.io/github/repo-size/ProjectMambo/MamboFinance?style=flat-square&color=yellow" />
-  <img src="https://img.shields.io/badge/License-AGPLv3_%2B_Commercial-orange?style=flat-square" alt="License: AGPLv3 + Commercial" />
+  <img src="https://img.shields.io/badge/Status-Prototype-yellow?style=flat-square" alt="Project status: prototype" />
+  <img src="https://img.shields.io/github/last-commit/ProjectMambo/MamboFinance?style=flat-square&color=7a5fff" alt="Last commit" />
+  <img src="https://img.shields.io/github/repo-size/ProjectMambo/MamboFinance?style=flat-square&color=yellow" alt="Repository size" />
+  <img src="https://img.shields.io/badge/License-AGPLv3_%2B_Commercial-orange?style=flat-square" alt="License: AGPLv3 and commercial" />
 </p>
 
-A lightweight, privacy-focused financial dashboard for effortless expense tracking and budgeting.
+MamboFinance is an experimental local finance ledger written in Rust. Its library models SQLite-backed transactions, categories, groups, funds, currencies, and queries; its Ratatui interface is currently a development prototype over an in-memory demo database.
 
-## Features
+## Start here
 
-## Getting Started
+| Goal | Document |
+|---|---|
+| Understand storage and code boundaries | [Architecture](docs/Architecture.md) |
+| Run and operate the current prototype | [TUI Guide](docs/TUI%20Guide.md) |
+| Inspect the source | [`mambofinance-lib/`](mambofinance-lib/) and [`mambofinance-tui/`](mambofinance-tui/) |
 
-### Prerequisites
+## Current capabilities
 
-## Issues & Feedback
-Since this is our personal finance tracker, we are not looking for external pull requests. However, if you spot a bug or rendering issue, feel free to open an **Issue** to let me know!
+| Area | Implemented now |
+|---|---|
+| Library | File-backed or in-memory SQLite initialization; transactions and paired transactions; categories, groups, funds, and currencies; query, sort, filter, edit, and delete operations |
+| TUI | Seeded in-memory session; table and sidebar navigation; views for each record type; add forms for transactions and reference data |
+| Not yet wired in the TUI | Persistent user databases, edit, delete, sort, filter, budgets, import/export, and production error presentation |
+
+The current interface discards its data when the process exits. The persistent `User::new` library path exists, but the binary intentionally calls `User::new_in_memory` and seeds demonstration records at startup.
+
+## Local setup
+
+Install a Rust toolchain with Rust 2024 edition support, then run the workspace from the repository root:
+
+```bash
+git clone https://github.com/ProjectMambo/MamboFinance.git
+cd MamboFinance
+cargo run -p mambofinance-tui
+```
+
+The SQLite dependency uses a bundled SQLite build, so a system SQLite development package is not required.
+
+## Repository layout
+
+```text
+mambofinance-lib/       SQLite ledger, domain types, validation, and queries
+mambofinance-tui/       Ratatui application, widgets, input, and event loop
+.cargo/config.toml      workspace command aliases
+.github/workflows/      Rust checks for the main branch
+docs/                   project, architecture, and TUI documentation
+```
+
+## Development checks
+
+```bash
+cargo fmt --all -- --check
+cargo test-all
+cargo clippy --workspace --all-targets
+```
+
+`cargo test-all` expands to `cargo test --workspace --no-fail-fast`. The workspace currently has comprehensive library tests; strict warning-free Clippy remains follow-up work because prototype and placeholder paths are intentionally unused.
+
+## Status
+
+Development currently happens on the `tui` branch. CI is configured only for `main`, and there is no packaged release or installation command. Treat the binary as a prototype, not as the sole copy of financial records.
+
+## Issues and feedback
+
+This is a personal finance project, so external pull requests are not currently requested. Focused bug reports are welcome as repository issues.
 
 ## License
-This project is dual-licensed under the GNU AGPLv3 and a Commercial License. See below for details:
+
+MamboFinance is dual-licensed under the GNU AGPLv3 and a commercial license:
+
 - [LICENSE-AGPL](LICENSE-AGPL)
-- [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL.pdf) *\[DRAFT - FOR INFORMATIONAL PURPOSES ONLY]*
+- [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL.pdf) — draft, for informational purposes only
