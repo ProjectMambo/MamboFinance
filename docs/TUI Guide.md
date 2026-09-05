@@ -1,12 +1,12 @@
 ---
-title: MamboFinance TUI Guide
+title: MamboFinance TUI guide
 description: Run and navigate the current in-memory MamboFinance terminal prototype.
 order: 20
 ---
 
 ::page{layout="docs" width="normal" sidebar=true}
 
-# MamboFinance TUI Guide
+# MamboFinance TUI guide
 
 ## Run
 
@@ -43,7 +43,7 @@ Press `a` from the main panel to open the add form for the active table.
 
 A transaction form collects name, description, integer amount, currency, day, month, year, group, category, and fund. Reference-data views collect their corresponding names; categories also select single or paired behavior.
 
-Invalid or incomplete data can currently surface as an application error or panic. This is prototype behavior, not a stable input contract.
+Malformed amount input is silently coerced to `0`; malformed day, month, and year fields default to `1`, `1`, and `2000`, respectively. Missing selections become empty strings; downstream lookups and writes can surface as an application error or panic. This is prototype behavior, not a stable input contract.
 
 ## Unimplemented hints
 

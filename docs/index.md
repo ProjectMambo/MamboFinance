@@ -1,7 +1,7 @@
 ---
 title: MamboFinance
 description: An experimental Rust and SQLite finance ledger with a Ratatui interface.
-order: 30
+order: 40
 ---
 
 ::page{layout="project" width="normal" sidebar=true}

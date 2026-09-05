@@ -1,12 +1,12 @@
 ---
-title: MamboFinance Architecture
+title: MamboFinance architecture
 description: Workspace structure, SQLite data model, query layer, and current TUI boundary.
 order: 10
 ---
 
 ::page{layout="docs" width="normal" sidebar=true}
 
-# MamboFinance Architecture
+# MamboFinance architecture
 
 ## Workspace
 
@@ -36,7 +36,7 @@ The schema contains:
 - `funds` for the account or store of value.
 - `currencies` referenced by transactions.
 
-UUID values are stored as SQLite blobs. Foreign keys cascade deletes to dependent transactions. Domain wrappers validate names, descriptions, amount representation, and calendar dates before writes.
+UUID values are stored as SQLite blobs. Foreign keys cascade deletes to dependent transactions. Labels normalize names to title case and copy descriptions as supplied, while amount constructors accept any signed 64-bit integer. Date construction rejects months above 12 and days above a month's maximum, but it currently accepts day zero and can panic on month zero. Treat boundary validation as incomplete.
 
 ## Ledger operations
 
@@ -67,12 +67,4 @@ Before a durable release, the interface still needs explicit user/database selec
 
 ## Quality gates
 
-The library's unit tests cover domain validation, SQLite operations, relationships, and query behavior. Run:
-
-```bash
-cargo fmt --all -- --check
-cargo test --workspace --no-fail-fast
-cargo clippy --workspace --all-targets
-```
-
-The GitHub Actions workflow currently runs on `main`; active TUI work on other branches must be checked locally.
+The library's unit tests cover its current domain behavior, SQLite operations, relationships, and queries. Use the repository README's **Development checks** as the authoritative local sequence. The GitHub Actions workflow runs the same Cargo checks for `main`, `tui`, and pull requests targeting either branch.

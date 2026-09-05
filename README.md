@@ -18,6 +18,7 @@ MamboFinance is an experimental local finance ledger written in Rust. Its librar
 
 | Goal | Document |
 |---|---|
+| Read the canonical Wiki documentation | [projectmambo.org/mambofinance/](https://projectmambo.org/mambofinance/) |
 | Understand storage and code boundaries | [Architecture](docs/Architecture.md) |
 | Run and operate the current prototype | [TUI Guide](docs/TUI%20Guide.md) |
 | Inspect the source | [`mambofinance-lib/`](mambofinance-lib/) and [`mambofinance-tui/`](mambofinance-tui/) |
@@ -50,7 +51,7 @@ The SQLite dependency uses a bundled SQLite build, so a system SQLite developmen
 mambofinance-lib/       SQLite ledger, domain types, validation, and queries
 mambofinance-tui/       Ratatui application, widgets, input, and event loop
 .cargo/config.toml      workspace command aliases
-.github/workflows/      Rust checks for the main branch
+.github/workflows/      Rust checks for the main and active TUI branches
 docs/                   project, architecture, and TUI documentation
 ```
 
@@ -60,13 +61,15 @@ docs/                   project, architecture, and TUI documentation
 cargo fmt --all -- --check
 cargo test-all
 cargo clippy --workspace --all-targets
+git diff --check
+git status --short
 ```
 
 `cargo test-all` expands to `cargo test --workspace --no-fail-fast`. The workspace currently has comprehensive library tests; strict warning-free Clippy remains follow-up work because prototype and placeholder paths are intentionally unused.
 
 ## Status
 
-Development currently happens on the `tui` branch. CI is configured only for `main`, and there is no packaged release or installation command. Treat the binary as a prototype, not as the sole copy of financial records.
+Development currently happens on the `tui` branch. CI runs the documented formatting, Clippy, and test sequence for both `main` and `tui`; there is no packaged release or installation command. Treat the binary as a prototype, not as the sole copy of financial records.
 
 ## Issues and feedback
 
