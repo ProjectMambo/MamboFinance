@@ -112,6 +112,10 @@ where
         }
         Ok(())
     }
+
+    pub fn need_query(&mut self) {
+        self.need_query = true;
+    }
 }
 
 impl<T: Debug> Actionable for QueryTableState<T> {

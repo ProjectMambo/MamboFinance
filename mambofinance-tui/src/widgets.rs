@@ -119,8 +119,8 @@ pub trait PanelState: Debug {
         false
     }
     #[allow(unused_variables)]
-    // handle custom events
-    fn handle_ui_events(&mut self, event: UIEvent, context: &AppContext) -> bool {
+    // handle custom events, consume context
+    fn handle_ui_events(&mut self, event: UIEvent, context: AppContext) -> bool {
         false
     }
 }
@@ -153,7 +153,7 @@ impl PanelState for TabState {
             TabState::UserList(state) => state.handle_key_events(event, context),
         }
     }
-    fn handle_ui_events(&mut self, event: UIEvent, context: &AppContext) -> bool {
+    fn handle_ui_events(&mut self, event: UIEvent, context: AppContext) -> bool {
         match self {
             TabState::UserList(state) => state.handle_ui_events(event, context),
         }
@@ -232,7 +232,7 @@ impl PanelState for UIState {
             false
         }
     }
-    fn handle_ui_events(&mut self, event: UIEvent, context: &AppContext) -> bool {
+    fn handle_ui_events(&mut self, event: UIEvent, context: AppContext) -> bool {
         if let Some(tab) = self.get_mut() {
             tab.handle_ui_events(event, context)
         } else {

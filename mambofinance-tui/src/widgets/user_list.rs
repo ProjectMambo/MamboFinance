@@ -11,9 +11,9 @@ use ratatui::{
 use crate::{
     app::AppContext,
     widgets::{
-        Actionable, PanelState,
+        Actionable, PanelState, UIEvent,
         bottom_bar::{BottomBar, Hintable},
-        pop_up::{PopUp, PopUpState, Popable},
+        pop_up::{PopUp, PopUpEvent, PopUpState, Popable},
         query_table::{QueryTable, QueryTableState},
         side_bar::{SideBar, SideBarState},
     },
@@ -38,6 +38,12 @@ pub const HINT_ITEMS: &[(&str, &str)] = &[
     ("Sort", "s"),
     ("Filter", "f"),
 ];
+
+pub const TRANSACTION_ENTRY_COUNT: usize = 10;
+pub const GROUP_ENTRY_COUNT: usize = 1;
+pub const CATEGORY_ENTRY_COUNT: usize = 2;
+pub const FUND_ENTRY_COUNT: usize = 1;
+pub const CURRENCY_ENTRY_COUNT: usize = 1;
 
 fn transaction_popup(
     groups: Vec<String>,
@@ -191,6 +197,10 @@ impl UserListState {
             .try_for_each(|t| t.update_data(user))
     }
 
+    fn extract_popup(&mut self, user: &User) -> PopUpState {
+        mem::replace(&mut self.popup_state, self.table_state.to_popup(user))
+    }
+
     fn esc(&mut self) {
         self.pop(false)
     }
@@ -261,16 +271,21 @@ impl PanelState for UserListState {
         }
     }
 
-    /*fn handle_ui_events(&mut self, event: UIEvent, context: AppContext) -> bool {
-        match event {
-            UIEvent::PopUp(PopUpEvent::Add) => {
-                context
-                    .user
-                    .add_transaction(name, description, _, _, group, category, fund)
-            }
-            _ => {}
+    fn handle_ui_events(&mut self, event: UIEvent, context: AppContext) -> bool {
+        let Some(popup) = event.try_into_popup() else {
+            return false;
+        };
+        if let PopUpEvent::Add = popup {
+            let popup = self.extract_popup(context.user);
+            self.table_state.add(context.user, popup.compile());
+            self.table_state.need_query();
+            self.update_data(context.user).expect("Cannot add data");
+            self.esc();
+            true
+        } else {
+            false
         }
-    }*/
+    }
 }
 
 impl Hintable for UserListState {
@@ -341,6 +356,10 @@ impl ActiveTableState {
         Ok(())
     }
 
+    pub fn need_query(&mut self) {
+        map!(self, w => w.need_query());
+    }
+
     // get the popup state of corresponding table
     pub fn to_popup(&self, user: &User) -> PopUpState {
         match self {
@@ -358,18 +377,117 @@ impl ActiveTableState {
             ActiveTableState::None => unreachable!("U broke the app"),
         }
     }
+
+    pub fn add(&self, user: &mut User, data: Vec<Option<String>>) {
+        match self {
+            ActiveTableState::Transactions(..) => {
+                // add noti sender
+                let [name, desc, amt_str, cur, d, m, y, grp, cat, fnd] = data.as_slice() else {
+                    panic!(
+                        "Entry count mismatch: expected {}, got {}",
+                        TRANSACTION_ENTRY_COUNT,
+                        data.len()
+                    );
+                };
+
+                user.add_transaction(
+                    name.as_deref()
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or("EMPTY TRANSACTION"),
+                    desc.as_deref(),
+                    (
+                        amt_str
+                            .as_deref()
+                            .and_then(|s| s.parse::<i64>().ok())
+                            .unwrap_or(0),
+                        cur.as_deref().unwrap_or_default(),
+                    ),
+                    (
+                        d.as_deref().and_then(|s| s.parse::<u8>().ok()).unwrap_or(1),
+                        m.as_deref().and_then(|s| s.parse::<u8>().ok()).unwrap_or(1),
+                        y.as_deref()
+                            .and_then(|s| s.parse::<u16>().ok())
+                            .unwrap_or(2000),
+                    ),
+                    grp.as_deref().unwrap_or_default(),
+                    cat.as_deref().unwrap_or_default(),
+                    fnd.as_deref().unwrap_or_default(),
+                )
+                .expect("Failed to add transaction");
+            }
+            ActiveTableState::Groups(..) => {
+                let [name] = data.as_slice() else {
+                    panic!(
+                        "Entry count mismatch: expected {}, got {}",
+                        GROUP_ENTRY_COUNT,
+                        data.len()
+                    );
+                };
+                user.add_group(
+                    name.as_deref()
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or("EMPTY GROUP"),
+                )
+                .expect("Failed to add group");
+            }
+            ActiveTableState::Categories(..) => {
+                let [name, variant] = data.as_slice() else {
+                    panic!(
+                        "Entry count mismatch: expected {}, got {}",
+                        CATEGORY_ENTRY_COUNT,
+                        data.len()
+                    );
+                };
+                let name = name
+                    .as_deref()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or("EMPTY CATEGORY");
+
+                if let Some(v) = variant
+                    && v == "Paired"
+                {
+                    user.add_paired_category(name)
+                        .expect("Failed to add category");
+                } else {
+                    user.add_category(name).expect("Failed to add category");
+                }
+            }
+            ActiveTableState::Funds(..) => {
+                let [name] = data.as_slice() else {
+                    panic!(
+                        "Entry count mismatch: expected {}, got {}",
+                        FUND_ENTRY_COUNT,
+                        data.len()
+                    );
+                };
+                user.add_fund(
+                    name.as_deref()
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or("EMPTY FUND"),
+                )
+                .expect("Failed to add fund");
+            }
+            ActiveTableState::Currencies(..) => {
+                let [name] = data.as_slice() else {
+                    panic!(
+                        "Entry count mismatch: expected {}, got {}",
+                        CURRENCY_ENTRY_COUNT,
+                        data.len()
+                    );
+                };
+                user.add_currency(
+                    name.as_deref()
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or("EMPTY CURRENCY"),
+                )
+                .expect("Failed to add currency");
+            }
+            ActiveTableState::None => unreachable!("U broke the app, table shouldnt be None"),
+        }
+    }
 }
 
 impl Actionable for ActiveTableState {
-    fn next(&mut self) {
-        map!(self, w => w.next());
-    }
-    fn prev(&mut self) {
-        map!(self, w => w.prev());
-    }
-    fn none(&mut self) {
-        map!(self, w => w.none());
-    }
     fn select(&mut self, index: Option<usize>) {
         map!(self, w => w.select(index));
     }

@@ -178,6 +178,18 @@ impl EntryState {
             EntryKind::Input => self.render_input(area, buf),
         }
     }
+
+    pub fn compile(mut self) -> Option<String> {
+        match self.config.kind {
+            EntryKind::HorizontalOption | EntryKind::VerticalOption
+                if let Some(idx) = self.selected() =>
+            {
+                Some(self.options.remove(idx))
+            }
+            EntryKind::Input => Some(self.value),
+            _ => None,
+        }
+    }
 }
 
 impl Actionable for EntryState {
@@ -294,6 +306,10 @@ impl RowState {
         for (i, entry) in self.entries.iter().enumerate() {
             entry.render(chunks[i], buf);
         }
+    }
+
+    pub fn compile(self) -> Vec<Option<String>> {
+        self.entries.into_iter().map(EntryState::compile).collect()
     }
 }
 
@@ -516,6 +532,10 @@ impl PopUpState {
             self.row();
         }
         &mut self.builder
+    }
+
+    pub fn compile(self) -> Vec<Option<String>> {
+        self.rows.into_iter().flat_map(RowState::compile).collect()
     }
 }
 

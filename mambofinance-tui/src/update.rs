@@ -9,11 +9,12 @@ pub fn handle_events(app: &mut App) -> Result<()> {
     if let Ok(ui_event) = app.event() {
         app.ui_state.handle_ui_events(
             ui_event,
-            &AppContext {
+            AppContext {
                 user: &mut app.user,
                 event_sender: app.event_handler.0.clone(),
             },
         );
+        return Ok(());
     }
 
     if let Event::Key(key_event) = event::read()? {
