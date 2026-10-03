@@ -1,12 +1,12 @@
 ---
-title: MamboFinance TUI guide
+title: TUI guide
 description: Run and navigate the current in-memory MamboFinance terminal prototype.
 order: 20
 ---
 
 ::page{layout="docs" width="normal" sidebar=true}
 
-# MamboFinance TUI guide
+# TUI guide
 
 ## Run
 

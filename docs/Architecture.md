@@ -1,12 +1,12 @@
 ---
-title: MamboFinance architecture
+title: Architecture
 description: Workspace structure, SQLite data model, query layer, and current TUI boundary.
 order: 10
 ---
 
 ::page{layout="docs" width="normal" sidebar=true}
 
-# MamboFinance architecture
+# Architecture
 
 ## Workspace
 

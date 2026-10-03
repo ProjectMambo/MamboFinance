@@ -47,7 +47,7 @@ The SQLite dependency uses a bundled SQLite build, so a system SQLite developmen
 |---|---|
 | Read the canonical Wiki documentation | [projectmambo.org/mambofinance/](https://projectmambo.org/mambofinance/) |
 | Understand storage and code boundaries | [Architecture](docs/Architecture.md) |
-| Run and operate the current prototype | [TUI Guide](docs/TUI%20Guide.md) |
+| Run and operate the current prototype | [TUI guide](docs/TUI%20Guide.md) |
 | Inspect the source | [`mambofinance-lib/`](mambofinance-lib/) and [`mambofinance-tui/`](mambofinance-tui/) |
 
 ## Current capabilities
