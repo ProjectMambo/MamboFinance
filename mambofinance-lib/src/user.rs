@@ -17,6 +17,7 @@ pub(in crate::user) use types::*;
 
 use rusqlite::{Connection, Result};
 use std::fs;
+use std::path::{Component, Path, PathBuf};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -104,6 +105,10 @@ pub enum InputError {
     #[error("Failed to create directory: {0}.")]
     InvalidDir(String),
 
+    /// Returned when a persistent user name could resolve outside the owned storage directory.
+    #[error("{0:?} is not a valid user name; use a single non-empty path component.")]
+    InvalidUserName(String),
+
     /// Returned when trying to match or utilize a category with the wrong structure type.
     #[error("{0} already exists but as a different category type.")]
     WrongVariant(String),
@@ -148,10 +153,43 @@ impl User {
     ///
     /// # Errors
     ///
-    /// Returns a `UserError` if the directory cannot be created or the database initialization fails.
+    /// Returns a `UserError` if the name is not a single safe path component, the owned storage
+    /// directory cannot be used, or database initialization fails.
     #[allow(dead_code)]
     pub fn new(name: &str) -> Result<Self, UserError> {
-        Self::new_at_path(&format!("storage/{}.db", name), name)
+        let path = Self::storage_path(name)?;
+        let storage = Path::new("storage");
+        fs::create_dir_all(storage)
+            .map_err(|e| UserError::Input(InputError::InvalidDir(e.to_string())))?;
+
+        let metadata = fs::symlink_metadata(storage)
+            .map_err(|e| UserError::Input(InputError::InvalidDir(e.to_string())))?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(InputError::InvalidDir(
+                "storage must be an owned directory, not a symbolic link".to_string(),
+            )
+            .into());
+        }
+
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(InputError::InvalidDir(
+                    "the user database must not be a symbolic link".to_string(),
+                )
+                .into());
+            }
+            Ok(_) if !path.is_file() => {
+                return Err(InputError::InvalidDir(
+                    "the user database path is not a regular file".to_string(),
+                )
+                .into());
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(InputError::InvalidDir(error.to_string()).into()),
+        }
+
+        Self::new_at_path(path, name)
     }
 
     /// Creates a new `User` instance backed by a temporary in-memory SQLite database.
@@ -165,12 +203,7 @@ impl User {
     }
 
     // Underlying initializer to construct directories, open connections, and apply schemas.
-    fn new_at_path(path: &str, name: &str) -> Result<Self, UserError> {
-        if path != ":memory:" {
-            fs::create_dir_all("storage")
-                .map_err(|e| UserError::Input(InputError::InvalidDir(format!("{}", e))))?;
-        }
-
+    fn new_at_path(path: impl AsRef<Path>, name: &str) -> Result<Self, UserError> {
         let conn = Connection::open(path).map_err(UserError::SQL)?;
 
         // Enforce cascading foreign keys.
@@ -219,6 +252,15 @@ impl User {
             name: String::from(name),
             conn,
         })
+    }
+
+    fn storage_path(name: &str) -> Result<PathBuf, UserError> {
+        let mut components = Path::new(name).components();
+        if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some() {
+            return Err(InputError::InvalidUserName(name.to_string()).into());
+        }
+
+        Ok(Path::new("storage").join(format!("{name}.db")))
     }
 
     // Confirms whether a registered category variant matches the target enum state.
@@ -539,18 +581,20 @@ impl User {
         index: usize,
         new_variant: CategoryVariant,
     ) -> Result<Self, UserError> {
-        self.edit(query, index, None, |conn, id| {
-            conn.execute(
-                "UPDATE transactions SET link_id = NULL WHERE category_id = ?1",
-                [id],
-            )
-        })?
-        .edit(query, index, None, |conn, id| {
-            conn.execute(
-                "UPDATE categories SET variant = ?1 WHERE id = ?2",
-                rusqlite::params![new_variant, id],
-            )
-        })
+        let id = query.get_item(index)?.id();
+        let tx = self.conn.unchecked_transaction().map_err(UserError::SQL)?;
+        tx.execute(
+            "UPDATE transactions SET link_id = NULL WHERE category_id = ?1",
+            [id],
+        )
+        .map_err(UserError::SQL)?;
+        tx.execute(
+            "UPDATE categories SET variant = ?1 WHERE id = ?2",
+            rusqlite::params![new_variant, id],
+        )
+        .map_err(UserError::SQL)?;
+        tx.commit().map_err(UserError::SQL)?;
+        Ok(self)
     }
 
     /// Intercepts shared transactions to pass adjustments safely to double-entry system complements.
@@ -900,6 +944,23 @@ mod tests {
 
         // Assert
         assert_eq!(fk_enabled, 1);
+    }
+
+    /// Verifies persistent user names cannot inject a parent, child, absolute, or empty path.
+    #[test]
+    fn new_rejects_names_that_can_escape_the_storage_directory() {
+        for name in ["../outside", "nested/user", "/tmp/outside", "", ".", ".."] {
+            let result = User::new(name);
+
+            assert!(
+                matches!(
+                    result,
+                    Err(UserError::Input(InputError::InvalidUserName(ref invalid)))
+                        if invalid == name
+                ),
+                "expected {name:?} to be rejected"
+            );
+        }
     }
 
     // endregion
@@ -1638,6 +1699,60 @@ mod tests {
     }
 
     // endregion
+
+    /// Verifies a failed category update rolls back the preceding forced link removals.
+    #[test]
+    fn force_edit_variant_rolls_back_unlinks_when_variant_update_fails() {
+        // Arrange
+        let path =
+            std::env::temp_dir().join(format!("mambofinance-force-edit-{}.db", Uuid::new_v4()));
+        let user = User::new_at_path(&path, "alice").expect("user creation should succeed");
+        user.add_group("Personal").expect("add_group failed");
+        user.add_fund("Cash").expect("add_fund failed");
+        user.add_fund("Bank").expect("add_fund failed");
+        user.add_currency("USD").expect("add_currency failed");
+        user.add_paired_category("Transfer")
+            .expect("add_paired_category failed");
+        user.add_paired_transaction(
+            "Move",
+            None,
+            (500, "USD"),
+            (500, "USD"),
+            (1, 1, 2026),
+            "Personal",
+            "Transfer",
+            "Cash",
+            "Bank",
+        )
+        .expect("add_paired_transaction failed");
+        let categories = user.categories().expect("category query should succeed");
+        user.conn
+            .execute_batch(
+                "CREATE TRIGGER reject_variant_update
+                 BEFORE UPDATE OF variant ON categories
+                 BEGIN
+                     SELECT RAISE(ABORT, 'forced test failure');
+                 END;",
+            )
+            .expect("trigger creation should succeed");
+
+        // Act
+        let result = user.force_edit_variant(&categories, 1, CategoryVariant::Single);
+
+        // Assert
+        assert!(matches!(result, Err(UserError::SQL(_))));
+        let conn = Connection::open(&path).expect("database should reopen");
+        let linked: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM transactions WHERE link_id IS NOT NULL",
+                (),
+                |row| row.get(0),
+            )
+            .expect("linked transaction count should succeed");
+        assert_eq!(linked, 2);
+        drop(conn);
+        fs::remove_file(path).expect("temporary database should be removable");
+    }
 }
 
 // endregion

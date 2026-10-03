@@ -8,6 +8,7 @@ use ratatui::{
 
 pub struct BottomBar {
     hint: Vec<(String, String)>,
+    status: Option<String>,
 }
 
 impl BottomBar {
@@ -17,6 +18,14 @@ impl BottomBar {
                 .iter()
                 .map(|(h, k)| (h.to_string(), k.to_string()))
                 .collect(),
+            status: None,
+        }
+    }
+
+    pub fn error(status: impl Into<String>) -> Self {
+        Self {
+            hint: Vec::new(),
+            status: Some(status.into()),
         }
     }
 }
@@ -26,6 +35,14 @@ impl Widget for BottomBar {
     where
         Self: Sized,
     {
+        if let Some(status) = self.status {
+            let paragraph = Paragraph::new(status)
+                .style(Style::default().fg(Color::Red))
+                .block(Block::default().borders(Borders::ALL).title(" Error "));
+            paragraph.render(area, buf);
+            return;
+        }
+
         let block = Block::default().borders(Borders::ALL).title(" Hint ");
 
         let mut spans = Vec::new();

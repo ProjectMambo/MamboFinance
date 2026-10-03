@@ -26,7 +26,7 @@ The workspace uses Rust 2024 edition. `mambofinance-tui` depends on the sibling 
 
 ## Storage model
 
-`User::new(name)` opens `storage/<name>.db`, creates the directory when needed, enables SQLite foreign keys, and creates missing tables. `User::new_in_memory(name)` applies the same schema to an in-memory connection.
+`User::new(name)` opens `storage/<name>.db`, creates the directory when needed, enables SQLite foreign keys, and creates missing tables. A name must be one non-empty path component; absolute paths, separators, `.` and `..` are rejected. The `storage/` directory and selected database must be real directory/file entries rather than symbolic links. `User::new_in_memory(name)` applies the same schema to an in-memory connection.
 
 The schema contains:
 
@@ -36,13 +36,15 @@ The schema contains:
 - `funds` for the account or store of value.
 - `currencies` referenced by transactions.
 
-UUID values are stored as SQLite blobs. Foreign keys cascade deletes to dependent transactions. Labels normalize names to title case and copy descriptions as supplied, while amount constructors accept any signed 64-bit integer. Date construction rejects months above 12 and days above a month's maximum, but it currently accepts day zero and can panic on month zero. Treat boundary validation as incomplete.
+UUID values are stored as SQLite blobs. Foreign keys cascade deletes to dependent transactions. Labels normalize names to title case and copy descriptions as supplied, while amount constructors accept any signed 64-bit integer. Date construction validates one-based month and day ranges, including leap-year boundaries.
+
+There is no released schema-migration, backup, encryption, or recovery contract. Persistent callers must manage independent backups and must not treat a prototype database as the only copy of financial records.
 
 ## Ledger operations
 
 The public `User` API creates and retrieves reference data, adds single or paired transactions, and exposes typed query objects. Query code supplies record-specific filtering and ordering while retaining a common wrapper for the UI.
 
-Edit and delete operations exist in the library. Category variant changes protect linked transactions unless the caller explicitly uses the force path.
+Edit and delete operations exist in the library. Category variant changes protect linked transactions unless the caller explicitly uses the force path. The force path unlinks affected transactions and updates the category variant within one SQLite transaction, so either both changes commit or both roll back.
 
 Budgets are not part of the active module tree. The empty budget placeholder does not provide a supported feature.
 
@@ -57,13 +59,13 @@ Crossterm event
     -> User write + table refresh
 ```
 
-Ratatui renders a sidebar, the selected query table, a contextual bottom bar, and an add popup. Completed popup fields are compiled into strings and handed to the record-specific library call.
+Ratatui renders a sidebar, the selected query table, a contextual bottom bar, and an add popup. Completed popup fields are compiled into strings, validated, and handed to the record-specific library call. Malformed numeric/date fields and database validation failures remain in the form and appear in the bottom status bar instead of being coerced or panicking.
 
 ## Current prototype boundary
 
-The binary creates `User::new_in_memory("USER")`, seeds currencies, funds, groups, categories, and transactions, and then starts the terminal loop. Nothing from that run is durable. Edit, delete, sort, and filter hints are visible but do not have key handlers yet.
+The binary creates `User::new_in_memory("USER")`, seeds currencies, funds, groups, categories, and transactions, and then starts the terminal loop. Nothing from that run is durable. Edit, delete, sort, and filter actions do not have key handlers and are not advertised as available.
 
-Before a durable release, the interface still needs explicit user/database selection, input-error handling without panics, finished actions, migration/recovery policy, and an end-to-end persistence check.
+Before a durable release, the interface still needs explicit user/database selection, finished actions, migration/recovery policy, and an end-to-end persistence check.
 
 ## Quality gates
 

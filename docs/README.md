@@ -14,14 +14,41 @@
 
 MamboFinance is an experimental local finance ledger written in Rust. Its library models SQLite-backed transactions, categories, groups, funds, currencies, and queries; its Ratatui interface is currently a development prototype over an in-memory demo database.
 
-## Start here
+## Motivation
+
+Personal finance data benefits from a local, inspectable ledger with explicit domain rules instead of a service account or opaque remote store. MamboFinance explores that boundary with a reusable Rust library and a keyboard-driven terminal interface.
+
+## Status
+
+MamboFinance is a prototype under active development on the `tui` branch. The library has broad unit coverage; the binary still uses seeded in-memory data and is not a durable finance application. There is no packaged release or supported database-migration path.
+
+## User stories
+
+- As a library user, I can create validated reference data and single or paired ledger transactions in SQLite.
+- As a terminal user, I can navigate record tables and add records without malformed fields crashing the process.
+- As a local-data owner, I can use a named database without letting its name escape or redirect the repository-owned `storage/` boundary.
+- As a maintainer, I can validate domain, query, transaction, and interface behavior through one documented workspace gate.
+
+## Getting Started
+
+Install a Rust toolchain with Rust 2024 edition support, then run the workspace from the repository root:
+
+```bash
+git clone https://github.com/ProjectMambo/MamboFinance.git
+cd MamboFinance
+cargo run -p mambofinance-tui
+```
+
+The SQLite dependency uses a bundled SQLite build, so a system SQLite development package is not required. The current process opens a seeded in-memory ledger and discards all changes on exit.
+
+## Documentation
 
 | Goal | Document |
 |---|---|
 | Read the canonical Wiki documentation | [projectmambo.org/mambofinance/](https://projectmambo.org/mambofinance/) |
 | Understand storage and code boundaries | [Architecture](Architecture.md) |
 | Run and operate the current prototype | [TUI Guide](TUI%20Guide.md) |
-| Inspect the source | [`mambofinance-lib/`](mambofinance-lib/) and [`mambofinance-tui/`](mambofinance-tui/) |
+| Inspect the source | [`mambofinance-lib/`](../mambofinance-lib/) and [`mambofinance-tui/`](../mambofinance-tui/) |
 
 ## Current capabilities
 
@@ -33,19 +60,9 @@ MamboFinance is an experimental local finance ledger written in Rust. Its librar
 
 The current interface discards its data when the process exits. The persistent `User::new` library path exists, but the binary intentionally calls `User::new_in_memory` and seeds demonstration records at startup.
 
-## Local setup
+Persistent library users must pass one non-empty filename component to `User::new`; path separators, absolute paths, `.` and `..` are rejected. The `storage/` directory and selected database must not be symbolic links. No migration, backup, encryption, or recovery contract exists yet, so keep independent backups and do not use this prototype as the only copy of financial records.
 
-Install a Rust toolchain with Rust 2024 edition support, then run the workspace from the repository root:
-
-```bash
-git clone https://github.com/ProjectMambo/MamboFinance.git
-cd MamboFinance
-cargo run -p mambofinance-tui
-```
-
-The SQLite dependency uses a bundled SQLite build, so a system SQLite development package is not required.
-
-## Repository layout
+## Project Structure
 
 ```text
 mambofinance-lib/       SQLite ledger, domain types, validation, and queries
@@ -55,7 +72,7 @@ mambofinance-tui/       Ratatui application, widgets, input, and event loop
 docs/                   project, architecture, and TUI documentation
 ```
 
-## Development checks
+## Validation
 
 ```bash
 cargo fmt --all -- --check
@@ -67,11 +84,11 @@ git status --short
 
 `cargo test-all` expands to `cargo test --workspace --no-fail-fast`. The workspace currently has comprehensive library tests; strict warning-free Clippy remains follow-up work because prototype and placeholder paths are intentionally unused.
 
-## Status
+## Development
 
-Development currently happens on the `tui` branch. CI runs the documented formatting, Clippy, and test sequence for both `main` and `tui`; there is no packaged release or installation command. Treat the binary as a prototype, not as the sole copy of financial records.
+Treat the public `mambofinance-lib` types, SQLite schema, validation behavior, and persistent path rules as interfaces. Coordinate incompatible changes with the TUI, add migration guidance before opening durable databases from the binary, and keep multi-statement ledger mutations transactional.
 
-## Issues and feedback
+Author documentation in `notes/Docs/Projects/MamboFinance/`, then run `node Scripts/sync_docs.js --sync MamboFinance MamboWiki` from `notes/`. Review the synchronized README and `docs/` tree before committing.
 
 This is a personal finance project, so external pull requests are not currently requested. Focused bug reports are welcome as repository issues.
 
@@ -79,5 +96,5 @@ This is a personal finance project, so external pull requests are not currently 
 
 MamboFinance is dual-licensed under the GNU AGPLv3 and a commercial license:
 
-- [LICENSE-AGPL](LICENSE-AGPL)
-- [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL.pdf) — draft, for informational purposes only
+- [LICENSE-AGPL](../LICENSE-AGPL)
+- [LICENSE-COMMERCIAL](../LICENSE-COMMERCIAL.pdf) — draft, for informational purposes only

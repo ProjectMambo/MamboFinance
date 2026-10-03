@@ -21,9 +21,9 @@ impl Date {
     ///
     /// # Errors
     ///
-    /// Returns a `DateError` if the month is out of range or the day exceeds the days in that month.
+    /// Returns a `DateError` if the month or day is outside its valid one-based range.
     pub fn new(day: u8, month: u8, year: u16) -> Result<Self, DateError> {
-        if month > 12 {
+        if !(1..=12).contains(&month) {
             return Err(DateError::InvalidMonth(month));
         }
 
@@ -34,7 +34,7 @@ impl Date {
             MONTHS_DAY_COUNT[(month - 1) as usize]
         };
 
-        if day > max {
+        if day == 0 || day > max {
             return Err(DateError::InvalidDay(
                 day,
                 String::from(MONTHS_NAME[(month - 1) as usize]),
@@ -97,10 +97,10 @@ impl PartialOrd for Date {
 /// Compilation of calendar domain validation errors.
 #[derive(Error, Debug)]
 pub enum DateError {
-    #[error("{0} is not a valid month, there's only 12.")]
+    #[error("{0} is not a valid month; use a value from 1 to 12.")]
     InvalidMonth(u8),
 
-    #[error("There's only {0} days in {1}")]
+    #[error("{0} is not a valid day in {1}.")]
     InvalidDay(u8, String),
 }
 
@@ -137,6 +137,16 @@ mod tests {
         assert!(matches!(result, Err(DateError::InvalidMonth(13))));
     }
 
+    /// Verifies that the one-based month range rejects zero without indexing before the lookup table.
+    #[test]
+    fn new_rejects_month_zero_without_panicking() {
+        // Arrange & Act
+        let result = Date::new(1, 0, 2026);
+
+        // Assert
+        assert!(matches!(result, Err(DateError::InvalidMonth(0))));
+    }
+
     /// Verifies that December is accepted as a valid upper boundary for months.
     #[test]
     fn new_accepts_month_exactly_twelve() {
@@ -157,6 +167,16 @@ mod tests {
 
         // Assert
         assert!(matches!(result, Err(DateError::InvalidDay(31, _))));
+    }
+
+    /// Verifies that the one-based day range rejects zero.
+    #[test]
+    fn new_rejects_day_zero() {
+        // Arrange & Act
+        let result = Date::new(0, 1, 2026);
+
+        // Assert
+        assert!(matches!(result, Err(DateError::InvalidDay(0, _))));
     }
 
     /// Verifies that February 29 is allowed when the year matches leap parameters.

@@ -453,7 +453,7 @@ impl StatefulWidget for PopUp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PopUpState {
     pub title: String,
     pub rows: Vec<RowState>,
@@ -619,10 +619,7 @@ impl PanelState for PopUpState {
         // absorb everything except esc to lock input to pop up
         match event.code {
             KeyCode::Enter if self.is_last() => {
-                context
-                    .event_sender
-                    .send(UIEvent::PopUp(PopUpEvent::Add))
-                    .unwrap();
+                let _ = context.event_sender.send(UIEvent::PopUp(PopUpEvent::Add));
             }
             KeyCode::Tab | KeyCode::Enter => {
                 if let Some(row) = self.get_mut()

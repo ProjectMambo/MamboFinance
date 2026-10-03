@@ -43,11 +43,11 @@ Press `a` from the main panel to open the add form for the active table.
 
 A transaction form collects name, description, integer amount, currency, day, month, year, group, category, and fund. Reference-data views collect their corresponding names; categories also select single or paired behavior.
 
-Malformed amount input is silently coerced to `0`; malformed day, month, and year fields default to `1`, `1`, and `2000`, respectively. Missing selections become empty strings; downstream lookups and writes can surface as an application error or panic. This is prototype behavior, not a stable input contract.
+Amount, day, month, and year must be valid whole numbers; dates must also satisfy the library's calendar rules. Currency, group, category, fund, and category variant selections are required. Invalid input or a database validation failure keeps the popup open and shows an error in the bottom status bar without writing a record.
 
-## Unimplemented hints
+## Unimplemented actions
 
-The bottom bar currently advertises these keys without connected actions:
+These actions are not yet connected or advertised in the bottom bar:
 
 - `d` — delete
 - `e` — edit

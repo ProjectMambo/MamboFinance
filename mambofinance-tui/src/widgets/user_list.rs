@@ -1,4 +1,5 @@
 use std::mem;
+use std::str::FromStr;
 
 use crossterm::event::{KeyCode, KeyEvent};
 use mambofinance_lib::user::{Category, Currency, Fund, Group, Transaction, User, UserError};
@@ -33,10 +34,6 @@ pub const HINT_ITEMS: &[(&str, &str)] = &[
     ("Quit", "ctrl c"),
     ("Navigate", "h/j/k/l | ←/↓/↑/→"),
     ("Add", "a"),
-    ("Delete", "d"),
-    ("Edit", "e"),
-    ("Sort", "s"),
-    ("Filter", "f"),
 ];
 
 pub const TRANSACTION_ENTRY_COUNT: usize = 10;
@@ -132,7 +129,11 @@ impl StatefulWidget for UserList {
             StatefulWidget::render(PopUp, overlay_area, buf, &mut state.popup_state);
         }
 
-        Widget::render(BottomBar::new(state.hint()), v_chunks[1], buf);
+        if let Some(status) = state.status.as_deref() {
+            Widget::render(BottomBar::error(status), v_chunks[1], buf);
+        } else {
+            Widget::render(BottomBar::new(state.hint()), v_chunks[1], buf);
+        }
     }
 }
 
@@ -145,6 +146,7 @@ pub struct UserListState {
     active_index: usize,
     focused: Option<usize>,
     pop: bool,
+    status: Option<String>,
 }
 
 impl UserListState {
@@ -162,7 +164,7 @@ impl UserListState {
             ActiveTableState::Currencies(QueryTableState::<Currency>::new(user)?),
         ];
 
-        let popup_state = table_state.to_popup(user);
+        let popup_state = PopUpState::new("Add");
         Ok(Self {
             sidebar_state,
             table_state,
@@ -171,6 +173,7 @@ impl UserListState {
             active_index: 0,
             focused: Some(0),
             pop: false,
+            status: None,
         })
     }
 
@@ -197,18 +200,22 @@ impl UserListState {
             .try_for_each(|t| t.update_data(user))
     }
 
-    fn extract_popup(&mut self, user: &User) -> PopUpState {
-        mem::replace(&mut self.popup_state, self.table_state.to_popup(user))
-    }
-
     fn esc(&mut self) {
         self.pop(false)
     }
 
     fn add(&mut self, user: &User) {
-        self.popup_state = self.table_state.to_popup(user);
-        self.popup_state.open();
-        self.pop(true)
+        match self.table_state.to_popup(user) {
+            Ok(mut popup) => {
+                popup.open();
+                self.popup_state = popup;
+                self.status = None;
+                self.pop(true);
+            }
+            Err(error) => {
+                self.status = Some(format!("Cannot open add form: {error}"));
+            }
+        }
     }
 }
 
@@ -276,11 +283,19 @@ impl PanelState for UserListState {
             return false;
         };
         if let PopUpEvent::Add = popup {
-            let popup = self.extract_popup(context.user);
-            self.table_state.add(context.user, popup.compile());
-            self.table_state.need_query();
-            self.update_data(context.user).expect("Cannot add data");
-            self.esc();
+            let data = self.popup_state.clone().compile();
+            match self.table_state.add(context.user, data) {
+                Ok(()) => {
+                    self.table_state.need_query();
+                    self.status = self.update_data(context.user).err().map(|error| {
+                        format!("Record saved, but the view could not refresh: {error}")
+                    });
+                    self.esc();
+                }
+                Err(error) => {
+                    self.status = Some(format!("Cannot add record: {error}"));
+                }
+            }
             true
         } else {
             false
@@ -361,130 +376,135 @@ impl ActiveTableState {
     }
 
     // get the popup state of corresponding table
-    pub fn to_popup(&self, user: &User) -> PopUpState {
+    pub fn to_popup(&self, user: &User) -> Result<PopUpState, String> {
         match self {
             ActiveTableState::Transactions(..) => {
-                let groups = user.groups().unwrap().to_options();
-                let categories = user.categories().unwrap().to_options();
-                let funds = user.funds().unwrap().to_options();
-                let currencies = user.currencies().unwrap().to_options();
-                transaction_popup(groups, categories, funds, currencies)
+                let groups = user
+                    .groups()
+                    .map_err(|error| error.to_string())?
+                    .to_options();
+                let categories = user
+                    .categories()
+                    .map_err(|error| error.to_string())?
+                    .to_options();
+                let funds = user
+                    .funds()
+                    .map_err(|error| error.to_string())?
+                    .to_options();
+                let currencies = user
+                    .currencies()
+                    .map_err(|error| error.to_string())?
+                    .to_options();
+                Ok(transaction_popup(groups, categories, funds, currencies))
             }
-            ActiveTableState::Groups(..) => group_popup(),
-            ActiveTableState::Categories(..) => category_popup(),
-            ActiveTableState::Funds(..) => fund_popup(),
-            ActiveTableState::Currencies(..) => currency_popup(),
-            ActiveTableState::None => unreachable!("U broke the app"),
+            ActiveTableState::Groups(..) => Ok(group_popup()),
+            ActiveTableState::Categories(..) => Ok(category_popup()),
+            ActiveTableState::Funds(..) => Ok(fund_popup()),
+            ActiveTableState::Currencies(..) => Ok(currency_popup()),
+            ActiveTableState::None => Err("no active table is selected".to_string()),
         }
     }
 
-    pub fn add(&self, user: &mut User, data: Vec<Option<String>>) {
+    pub fn add(&self, user: &User, data: Vec<Option<String>>) -> Result<(), String> {
         match self {
             ActiveTableState::Transactions(..) => {
-                // add noti sender
                 let [name, desc, amt_str, cur, d, m, y, grp, cat, fnd] = data.as_slice() else {
-                    panic!(
-                        "Entry count mismatch: expected {}, got {}",
-                        TRANSACTION_ENTRY_COUNT,
-                        data.len()
-                    );
+                    return Err(entry_count_error(TRANSACTION_ENTRY_COUNT, data.len()));
                 };
+
+                let amount = parse_number::<i64>(amt_str, "Amount")?;
+                let day = parse_number::<u8>(d, "Day")?;
+                let month = parse_number::<u8>(m, "Month")?;
+                let year = parse_number::<u16>(y, "Year")?;
 
                 user.add_transaction(
                     name.as_deref()
                         .filter(|s| !s.is_empty())
                         .unwrap_or("EMPTY TRANSACTION"),
                     desc.as_deref(),
-                    (
-                        amt_str
-                            .as_deref()
-                            .and_then(|s| s.parse::<i64>().ok())
-                            .unwrap_or(0),
-                        cur.as_deref().unwrap_or_default(),
-                    ),
-                    (
-                        d.as_deref().and_then(|s| s.parse::<u8>().ok()).unwrap_or(1),
-                        m.as_deref().and_then(|s| s.parse::<u8>().ok()).unwrap_or(1),
-                        y.as_deref()
-                            .and_then(|s| s.parse::<u16>().ok())
-                            .unwrap_or(2000),
-                    ),
-                    grp.as_deref().unwrap_or_default(),
-                    cat.as_deref().unwrap_or_default(),
-                    fnd.as_deref().unwrap_or_default(),
+                    (amount, required_value(cur, "Currency")?),
+                    (day, month, year),
+                    required_value(grp, "Group")?,
+                    required_value(cat, "Category")?,
+                    required_value(fnd, "Fund")?,
                 )
-                .expect("Failed to add transaction");
+                .map(|_| ())
+                .map_err(|error| error.to_string())
             }
             ActiveTableState::Groups(..) => {
                 let [name] = data.as_slice() else {
-                    panic!(
-                        "Entry count mismatch: expected {}, got {}",
-                        GROUP_ENTRY_COUNT,
-                        data.len()
-                    );
+                    return Err(entry_count_error(GROUP_ENTRY_COUNT, data.len()));
                 };
                 user.add_group(
                     name.as_deref()
                         .filter(|s| !s.is_empty())
                         .unwrap_or("EMPTY GROUP"),
                 )
-                .expect("Failed to add group");
+                .map(|_| ())
+                .map_err(|error| error.to_string())
             }
             ActiveTableState::Categories(..) => {
                 let [name, variant] = data.as_slice() else {
-                    panic!(
-                        "Entry count mismatch: expected {}, got {}",
-                        CATEGORY_ENTRY_COUNT,
-                        data.len()
-                    );
+                    return Err(entry_count_error(CATEGORY_ENTRY_COUNT, data.len()));
                 };
                 let name = name
                     .as_deref()
                     .filter(|s| !s.is_empty())
                     .unwrap_or("EMPTY CATEGORY");
 
-                if let Some(v) = variant
-                    && v == "Paired"
-                {
-                    user.add_paired_category(name)
-                        .expect("Failed to add category");
-                } else {
-                    user.add_category(name).expect("Failed to add category");
+                match required_value(variant, "Variant")? {
+                    "Paired" => user.add_paired_category(name),
+                    "Single" => user.add_category(name),
+                    variant => return Err(format!("Unsupported category variant: {variant}")),
                 }
+                .map(|_| ())
+                .map_err(|error| error.to_string())
             }
             ActiveTableState::Funds(..) => {
                 let [name] = data.as_slice() else {
-                    panic!(
-                        "Entry count mismatch: expected {}, got {}",
-                        FUND_ENTRY_COUNT,
-                        data.len()
-                    );
+                    return Err(entry_count_error(FUND_ENTRY_COUNT, data.len()));
                 };
                 user.add_fund(
                     name.as_deref()
                         .filter(|s| !s.is_empty())
                         .unwrap_or("EMPTY FUND"),
                 )
-                .expect("Failed to add fund");
+                .map(|_| ())
+                .map_err(|error| error.to_string())
             }
             ActiveTableState::Currencies(..) => {
                 let [name] = data.as_slice() else {
-                    panic!(
-                        "Entry count mismatch: expected {}, got {}",
-                        CURRENCY_ENTRY_COUNT,
-                        data.len()
-                    );
+                    return Err(entry_count_error(CURRENCY_ENTRY_COUNT, data.len()));
                 };
                 user.add_currency(
                     name.as_deref()
                         .filter(|s| !s.is_empty())
                         .unwrap_or("EMPTY CURRENCY"),
                 )
-                .expect("Failed to add currency");
+                .map(|_| ())
+                .map_err(|error| error.to_string())
             }
-            ActiveTableState::None => unreachable!("U broke the app, table shouldnt be None"),
+            ActiveTableState::None => Err("no active table is selected".to_string()),
         }
     }
+}
+
+fn entry_count_error(expected: usize, actual: usize) -> String {
+    format!("Form entry count mismatch: expected {expected}, got {actual}")
+}
+
+fn required_value<'a>(value: &'a Option<String>, field: &str) -> Result<&'a str, String> {
+    value
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| format!("{field} is required"))
+}
+
+fn parse_number<T: FromStr>(value: &Option<String>, field: &str) -> Result<T, String> {
+    required_value(value, field)?
+        .trim()
+        .parse()
+        .map_err(|_| format!("{field} must be a valid whole number"))
 }
 
 impl Actionable for ActiveTableState {
@@ -509,3 +529,65 @@ impl PanelState for ActiveTableState {
 }
 
 // endregion
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn seeded_user() -> User {
+        let user = User::new_in_memory("alice").expect("user creation should succeed");
+        user.add_group("Personal").expect("add_group failed");
+        user.add_category("Food").expect("add_category failed");
+        user.add_fund("Cash").expect("add_fund failed");
+        user.add_currency("USD").expect("add_currency failed");
+        user
+    }
+
+    fn transaction_form(amount: &str, day: &str, month: &str) -> Vec<Option<String>> {
+        [
+            "Lunch", "", amount, "USD", day, month, "2026", "Personal", "Food", "Cash",
+        ]
+        .into_iter()
+        .map(|value| Some(value.to_string()))
+        .collect()
+    }
+
+    #[test]
+    fn add_transaction_rejects_malformed_amount_without_writing() {
+        let user = seeded_user();
+        let state = ActiveTableState::Transactions(
+            QueryTableState::<Transaction>::new(&user).expect("transaction table should build"),
+        );
+
+        let result = state.add(&user, transaction_form("not-a-number", "1", "1"));
+
+        assert!(matches!(result, Err(ref error) if error.contains("Amount")));
+        assert!(user.transactions().unwrap().rows.is_empty());
+    }
+
+    #[test]
+    fn add_transaction_surfaces_invalid_date_without_writing() {
+        let user = seeded_user();
+        let state = ActiveTableState::Transactions(
+            QueryTableState::<Transaction>::new(&user).expect("transaction table should build"),
+        );
+
+        let result = state.add(&user, transaction_form("100", "0", "1"));
+
+        assert!(matches!(result, Err(ref error) if error.contains("valid day")));
+        assert!(user.transactions().unwrap().rows.is_empty());
+    }
+
+    #[test]
+    fn add_surfaces_database_validation_errors() {
+        let user = seeded_user();
+        let state = ActiveTableState::Groups(
+            QueryTableState::<Group>::new(&user).expect("group table should build"),
+        );
+
+        let result = state.add(&user, vec![Some("Personal".to_string())]);
+
+        assert!(matches!(result, Err(ref error) if error.contains("already exists")));
+        assert_eq!(user.groups().unwrap().rows.len(), 1);
+    }
+}
