@@ -58,7 +58,7 @@ Source provenance is retained with imported entries, but raw statements are not 
 
 The TUI will pin MamboUI revision `819b03fe77a39ee1bccefde4de9b9676eaa03134` until its `0.2.0` contract is released. It imports Ratatui through `mambo_ui::ratatui` and composes MamboUI's shell, panels, selection tables, status lines, help, empty states, and responsive layouts. Finance-specific screens, forms, charts, conflict evidence, and state transitions stay in MamboFinance.
 
-The first screens are Overview, Transactions, Budgets, and Imports. Rendering and input handling call application commands and do not contain validation or database policy.
+The five primary screens are Overview, Transactions, Budgets, Insights, and Imports. Infrequent account, category, data-safety, MCP-status, appearance, and help tasks live under Manage rather than crowding the daily navigation. Rendering and input handling call application commands and do not contain validation or database policy.
 
 ### MCP tools and optional CLI
 
@@ -78,9 +78,6 @@ An optional `mbfinance` CLI may wrap the same application operations for scripts
 
 ## Delivery order
 
-1. Establish the domain, migrations, shared application operations, MCP transport and authorization boundary, and focused checks.
-2. Deliver each domain slice through both MamboUI and typed MCP tools, with parity and failure-path tests.
-3. Add overview, budgets, statistics, backup/export, and the same tool coverage.
-4. Add staged import, deterministic reconciliation, review, preview, and atomic commit through the shared core and MCP tools.
+The [development plan](Development%20Plan.md) owns the detailed dependency order, exit gates, interface map, storage contract, MamboUI workstream, MCP tool map, and release milestones. In summary, the implementation establishes the domain, migrations, connection boundary, and focused checks before delivering each domain slice through both MamboUI and typed MCP tools. Durable backup precedes user-data claims, and staged import builds on the completed ledger and reporting core.
 
 The reset deliberately leaves no placeholder crates, plugin system, model abstraction, or cloud service.

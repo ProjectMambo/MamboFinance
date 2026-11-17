@@ -13,14 +13,17 @@ order: 20
 
 ## Human interface
 
-The MamboUI terminal interface will keep four primary views:
+The MamboUI terminal interface will keep five primary views, with infrequent administration under Manage:
 
 | View | Purpose |
 |---|---|
 | Overview | Show account balances, budget progress, recent spending summaries, and the count of imports needing review |
 | Transactions | Add, edit, categorize, link as transfers, filter, inspect provenance, and remove entries with confirmation |
 | Budgets | Set category limits for a date period and compare actual spending with the limit |
+| Insights | Explore income, expense, cash-flow, category, payee, balance, and budget statistics with explicit filters and currency boundaries |
 | Imports | Inspect batches and evidence, edit proposals, accept or exclude rows, resolve conflicts, preview effects, and commit |
+
+Manage contains accounts, categories, backup/export/restore, database status, MCP connection state, appearance, and the complete key reference. It is not a daily tab.
 
 Every status has a text label rather than colour alone. The interface shows active keys, confirms destructive actions with the exact target, preserves unresolved work, and remains usable at its documented minimum terminal size.
 
@@ -60,11 +63,11 @@ MamboFinance exposes typed tools through MCP. Exact tool names become public onl
 | Transactions and transfers | List, show, add, update, link/unlink, preview deletion, and delete |
 | Budgets | List, show, create, update, and delete |
 | Imports | Read context; stage, inspect, patch, review, preview, commit, and abandon a batch |
-| Data safety | Export, back up, inspect database status, and apply supported migrations |
+| Data safety | Export, create an application-owned backup, and inspect database status |
 
 The MamboUI interface and MCP tools call the same application operations. UI-only navigation, focus, theme selection, and help do not need tool equivalents. Tools declare typed inputs and outputs, stable errors, and read or write behavior; they never expose a generic shell, SQL, or filesystem operation.
 
-An optional CLI may wrap the same operations for scripts or debugging, but it is not required for AI connectivity.
+Migrations run through the supported application startup and release path rather than an AI tool. Restore remains an operator-only recovery workflow in version 1 because it replaces the complete ledger. An optional CLI may wrap ordinary operations for scripts or debugging, but it is not required for AI connectivity.
 
 ## Data and privacy
 

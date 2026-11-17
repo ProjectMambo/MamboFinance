@@ -58,6 +58,7 @@ There is currently nothing to install or run. Start with the design documents be
 |---|---|
 | Read the published project hub | [projectmambo.org/mambofinance/](https://projectmambo.org/mambofinance/) |
 | Understand the selected architecture and reset decision | [Architecture](Architecture.md) |
+| Follow the dependency-ordered implementation stages | [Development plan](Development%20Plan.md) |
 | Understand the planned human and AI-tool workflows | [User guide](User%20Guide.md) |
 | Understand external-AI staging, review, and commit | [AI import workflow](AI%20Import%20Workflow.md) |
 
