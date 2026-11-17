@@ -1,6 +1,6 @@
 ---
 title: MamboFinance
-description: A local-first finance design with MamboUI, complete CLI parity, and reviewable external-AI imports.
+description: A local-first finance design with MamboUI, complete AI-tool parity, and reviewable external-AI imports.
 order: 40
 ---
 
@@ -19,8 +19,8 @@ The obsolete library and in-memory terminal prototype have been removed. The rep
 ## Selected direction
 
 - One Rust package owns a shared application core and local SQLite ledger.
-- A thin terminal interface uses MamboUI; a non-interactive `mbfinance` CLI exposes every domain action with structured JSON.
-- Optional MCP or other tool adapters map to the same commands for external assistants.
+- A thin terminal interface uses MamboUI; an MCP server exposes every domain action as a typed AI tool.
+- An optional `mbfinance` CLI may wrap the same operations for scripts and debugging.
 - Imports are staged, validated, reviewed, previewed, and committed atomically; AI proposals never bypass ledger rules.
 - Version 1 does not embed a model or retain raw reports by default.
 

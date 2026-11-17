@@ -1,6 +1,6 @@
 ---
 title: User guide
-description: Planned manual, budget, overview, CLI, and import-review workflows for the rebuilt application.
+description: Planned manual, budget, overview, AI-tool, and import-review workflows for the rebuilt application.
 order: 20
 ---
 
@@ -49,20 +49,22 @@ A budget applies one category limit to one date period and currency. The overvie
 
 See [AI import workflow](AI%20Import%20Workflow.md) for the full trust and tool contract.
 
-## CLI parity
+## AI tool parity
 
-The planned command grammar is `mbfinance <resource> <verb> [options]`. It will be non-interactive by default for automation and offer structured JSON input/output. Exact commands become public only when implemented and tested, but the contract must cover:
+MamboFinance exposes typed tools through MCP. Exact tool names become public only when implemented and tested, but the interface covers:
 
-| Area | Required operations |
+| Area | Required tool operations |
 |---|---|
-| Overview and statistics | Show summaries with explicit periods, account/category filters, and currency boundaries |
+| Overview and statistics | Read summaries with explicit periods, account/category filters, and currency boundaries |
 | Accounts and categories | List, show, create, update, archive, and restore |
 | Transactions and transfers | List, show, add, update, link/unlink, preview deletion, and delete |
 | Budgets | List, show, create, update, and delete |
-| Imports | Read context; stage, show, patch, review, preview, commit, and abandon a batch |
+| Imports | Read context; stage, inspect, patch, review, preview, commit, and abandon a batch |
 | Data safety | Export, back up, inspect database status, and apply supported migrations |
 
-The TUI calls the same application operations. UI-only navigation, focus, theme selection, and help do not need CLI equivalents.
+The MamboUI interface and MCP tools call the same application operations. UI-only navigation, focus, theme selection, and help do not need tool equivalents. Tools declare typed inputs and outputs, stable errors, and read or write behavior; they never expose a generic shell, SQL, or filesystem operation.
+
+An optional CLI may wrap the same operations for scripts or debugging, but it is not required for AI connectivity.
 
 ## Data and privacy
 

@@ -1,6 +1,6 @@
 ---
 title: Architecture
-description: The local ledger, shared command core, MamboUI and CLI adapters, and external-AI trust boundary.
+description: The local ledger, shared command core, MamboUI and MCP interfaces, and external-AI trust boundary.
 order: 10
 ---
 
@@ -10,22 +10,21 @@ order: 10
 
 ## Decision
 
-MamboFinance will not embed a model in version 1. External AI systems are optional clients that extract and propose statement rows; MamboFinance owns deterministic validation, conflict detection, review state, and persistence. This keeps the application model-independent and avoids making a cloud model a hidden trust boundary for financial data.
+MamboFinance will not embed a model in version 1. Using an external AI is optional for the user, but the application exposes a complete typed tool interface for AI clients. Those clients may extract and propose statement rows; MamboFinance owns deterministic validation, conflict detection, review state, and persistence. This keeps the application model-independent and avoids making a cloud model a hidden trust boundary for financial data.
 
 The replacement will be one Rust package with one application command layer and three thin adapters:
 
 ```text
 Human -> MamboUI TUI -----------\
-                                 -> application commands -> domain rules -> SQLite
-Automation -> mbfinance CLI ----/
-External AI -> optional tools --/
+AI clients -> MCP server --------> application commands -> domain rules -> SQLite
+Scripts -> optional CLI --------/
 ```
 
-The CLI is the canonical automation contract. An MCP or other tool adapter maps typed calls to the same application commands; it is not a second implementation. The TUI has no privileged mutation path.
+The MCP server is the canonical AI integration. It maps typed tools to the same application commands used by the TUI; it is not a second implementation. An optional CLI may wrap those operations for scripts and debugging. No adapter has a privileged mutation path.
 
 ## Why the old design was reset
 
-The old code provided a large bespoke query and widget framework around a terminal demo that always seeded an in-memory database and discarded changes at exit. It had no complete CLI, import workflow, source provenance, migration contract, durable application path, statistics, or usable budgets, and it duplicated components now owned by MamboUI.
+The old code provided a large bespoke query and widget framework around a terminal demo that always seeded an in-memory database and discarded changes at exit. It had no machine-callable tool interface, import workflow, source provenance, migration contract, durable application path, statistics, or usable budgets, and it duplicated components now owned by MamboUI.
 
 Its current-directory-relative storage and cascading reference-data deletes were unsafe foundations for real financial records. Tiny text limits, title-casing, and paired-category semantics also did not map cleanly to ordinary statements. Preserving that API and schema would cost more than rebuilding the small domain the product actually needs.
 
@@ -61,11 +60,13 @@ The TUI will pin MamboUI revision `819b03fe77a39ee1bccefde4de9b9676eaa03134` unt
 
 The first screens are Overview, Transactions, Budgets, and Imports. Rendering and input handling call application commands and do not contain validation or database policy.
 
-### CLI and tools
+### MCP tools and optional CLI
 
-`mbfinance` supports non-interactive operation and structured JSON input/output. Every domain query or mutation available in the TUI has a CLI equivalent; navigation, focus, theme, and help are presentation-only and need no command. Diagnostics remain separate from result output, errors use stable codes, and bulk or destructive operations have preview and explicit commit boundaries.
+Every domain query or mutation available in the TUI has a typed MCP tool. Navigation, focus, theme, and help are presentation-only and need no tool equivalent. Each tool has explicit input and output schemas, stable structured errors, and an accurate read or write annotation.
 
-The optional AI-facing adapter exposes a bounded context and staged-import operations rather than unrestricted SQL or filesystem access. It cannot weaken validation, authorization, idempotency, confirmation, or atomicity.
+The MCP server exposes bounded finance operations rather than unrestricted SQL, shell, or filesystem access. Read tools return only the data required for the task. Write tools preserve authorization and exact-target checks, require confirmation for consequential actions, and use preview, idempotency, or atomic mutation where required.
+
+An optional `mbfinance` CLI may wrap the same application operations for scripts and debugging. It is not required for AI connectivity and cannot weaken MCP or core validation.
 
 ## Trust boundaries
 
@@ -77,9 +78,9 @@ The optional AI-facing adapter exposes a bounded context and staged-import opera
 
 ## Delivery order
 
-1. Establish the domain, migrations, manual transaction path, JSON CLI contract, and focused checks.
-2. Add overview, budgets, statistics, backup/export, and the MamboUI interface over those commands.
-3. Add staged import, deterministic reconciliation, review, preview, and atomic commit.
-4. Add a thin MCP or equivalent adapter only when a real host integration is ready to exercise the same contract.
+1. Establish the domain, migrations, shared application operations, MCP transport and authorization boundary, and focused checks.
+2. Deliver each domain slice through both MamboUI and typed MCP tools, with parity and failure-path tests.
+3. Add overview, budgets, statistics, backup/export, and the same tool coverage.
+4. Add staged import, deterministic reconciliation, review, preview, and atomic commit through the shared core and MCP tools.
 
 The reset deliberately leaves no placeholder crates, plugin system, model abstraction, or cloud service.

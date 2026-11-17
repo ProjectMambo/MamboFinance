@@ -10,15 +10,15 @@ order: 30
 
 ## Chosen approach
 
-MamboFinance provides finance tools; it does not choose or embed the model. A user may upload a report to ChatGPT or another capable system, and that system may call MamboFinance through the CLI or a thin MCP-style adapter. The model performs document reading and uncertain interpretation while MamboFinance performs deterministic ledger work.
+MamboFinance provides finance tools; it does not choose or embed the model. A user may upload a report to ChatGPT or another capable system, and that system calls MamboFinance through its MCP server. The model performs document reading and uncertain interpretation while MamboFinance performs deterministic ledger work.
 
 This separation makes the model replaceable, keeps finance rules testable, and lets the application mark uncertainty instead of inventing certainty.
 
 ## Host adapters
 
-The JSON CLI remains the portable automation boundary. An MCP server may expose the same typed operations to clients that support it; for example, ChatGPT currently connects custom MCP servers as plugins with read and write tools, including private connectivity through [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/custom-mcp-server).
+MCP is the portable AI boundary. For example, ChatGPT currently connects custom MCP servers as plugins with read and write tools, including private connectivity through [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/custom-mcp-server).
 
-The adapter marks `context`, `import show`, and `import preview` as read-only. Staging, patching, abandoning, and committing are write operations, even when they affect only review state. Host confirmation is useful defense in depth, but the core still enforces validation, exact-target checks, preview freshness, authorization, and atomic commit. Other AI hosts may use MCP or invoke the JSON CLI through their own trusted tool runner.
+The server marks `get_import_context`, `list_import_batches`, `get_import_batch`, and `preview_import` as read-only. Staging, patching, abandoning, and committing are write operations, even when they affect only review state. Host confirmation is useful defense in depth, but the core still enforces validation, exact-target checks, preview freshness, authorization, and atomic commit. An optional CLI may mirror the same operations for scripts and debugging; it is not the AI integration boundary.
 
 ## Batch lifecycle
 
@@ -32,18 +32,18 @@ A committed batch is immutable. Corrections use ordinary ledger edits with an au
 
 ## Tool sequence
 
-The CLI names below describe the intended contract and are not implemented yet. An MCP adapter exposes equivalent typed operations without changing their rules.
+The MCP tool names below describe the intended contract and are not implemented yet.
 
 | Step | Tool operation | Responsibility |
 |---|---|---|
-| 1 | `context` | Return the import schema plus bounded accounts, categories, configured mappings, currencies, and supported issue codes |
-| 2 | `import stage` | Accept source metadata and normalized proposed rows, create a batch, and run deterministic checks |
-| 3 | `import show` | List staged rows, decisions, evidence locators, and issues with stable IDs and pagination |
-| 4 | `import patch` | Apply explicit row corrections, mappings, transfer links, accept decisions, or exclusions, then rerun affected checks |
-| 5 | `import preview` | Report inserts, skips, exclusions, conflicts, account effects, and statement-balance reconciliation without mutation |
-| 6 | `import commit` | Atomically create the approved ledger entries and provenance links, refusing unresolved rows |
+| 1 | `get_import_context` | Return the import schema plus bounded accounts, categories, configured mappings, currencies, and supported issue codes |
+| 2 | `stage_import` | Accept source metadata and normalized proposed rows, create a batch, and run deterministic checks |
+| 3 | `get_import_batch` | List staged rows, decisions, evidence locators, and issues with stable IDs and pagination |
+| 4 | `patch_import` | Apply explicit row corrections, mappings, transfer links, accept decisions, or exclusions, then rerun affected checks |
+| 5 | `preview_import` | Report inserts, skips, exclusions, conflicts, account effects, and statement-balance reconciliation without mutation |
+| 6 | `commit_import` | Atomically create the approved ledger entries and provenance links, refusing unresolved rows |
 
-The adapter also exposes batch listing and abandonment. It never exposes raw SQL, arbitrary file access, or a generic “run command” escape hatch.
+The server also exposes `list_import_batches` and `abandon_import`. It never exposes raw SQL, arbitrary file access, or a generic “run command” escape hatch.
 
 ## Proposal input
 
