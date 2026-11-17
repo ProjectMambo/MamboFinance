@@ -1,9 +1,0 @@
-[package]
-name = "mambofinance-tui"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-mambofinance-lib = { path = "../mambofinance-lib" }
-ratatui = "0.26"
-crossterm = "0.27"

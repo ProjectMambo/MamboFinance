@@ -1,4 +1,0 @@
-[workspace]
-resolver = "2"
-members = ["mambofinance-lib", "mambofinance-tui"]
-default-members = ["mambofinance-tui", "mambofinance-lib"]
