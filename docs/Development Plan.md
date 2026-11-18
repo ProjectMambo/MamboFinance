@@ -14,9 +14,9 @@ The plan is authoritative for intended delivery order, but it is not a promise o
 
 ## Current state
 
-MamboFinance is currently a documentation and licence baseline. The obsolete library and in-memory terminal prototype have been removed; there is no executable application, supported database, migration path, MCP server, or user-data compatibility promise in the current release. Git history preserves the earlier prototype, but the replacement intentionally starts from the contracts and fixtures in Stage 0 rather than treating prototype behavior as supported.
+MamboFinance now has an experimental executable foundation. One Rust package starts either a keyboard-only MamboUI shell or a loopback Streamable HTTP MCP server. A shared application query reports capabilities through both interfaces. SQLite schema version 1 records migration history in the platform user-data directory with foreign keys, WAL, a busy timeout, transactional version recording, and newer-schema refusal. CI, unit tests, TUI render checks, and a real local HTTP protocol smoke test cover this slice.
 
-The evidence reviewed for this plan is the reset repository, current README, architecture, user and AI-import guides, MamboUI contract, and the prior prototype's safety lessons. Every stage below remains planned until its exit gate is met and the current-state section is revised with the delivered evidence.
+No finance-domain action or table exists yet. Accounts, categories, transactions, transfers, budgets, statistics, imports, authorization, backup, restore, and stable user-data compatibility all remain planned. Stage 1 is not complete until a supported external host proves connection and confirmation behavior and the remaining dependency/licence gate is fixed. Stage 2 is only partially started: failed-migration recovery, multi-process behavior, backup, and the domain schema remain open.
 
 ## Target shape
 

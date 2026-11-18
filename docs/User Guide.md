@@ -9,7 +9,25 @@ order: 20
 # User guide
 
 > [!WARNING]
-> This page defines the intended user contract. The reset currently has no executable application, so the screens and commands below are not yet available.
+> The executable foundation is available, but the finance workflows below remain planned. The current TUI only demonstrates the five-view shell and storage status; the current MCP server only exposes `get_capabilities`.
+
+## Foundation preview
+
+Run the TUI from a clone with Rust 1.95.0:
+
+```bash
+cargo run --locked
+```
+
+Use `1` through `5` or the left and right arrow keys to inspect the planned views, and `q` to quit. The shell intentionally contains no account or ledger actions yet.
+
+Start the local MCP endpoint with:
+
+```bash
+cargo run --locked -- mcp
+```
+
+It binds only to `127.0.0.1:3210`, serves MCP at `/mcp`, and reports implemented and unavailable capabilities. Do not treat it as a complete finance integration or expose it to another network.
 
 ## Human interface
 

@@ -54,9 +54,11 @@ Reference data that is still in use cannot silently erase transactions. Multi-ro
 
 Source provenance is retained with imported entries, but raw statements are not copied into the database by default. Logs, JSON output, errors, and test fixtures must not expose full reports, account numbers, or unrelated ledger history.
 
+The implemented schema version 1 is deliberately smaller than the target model: it records only ordered migration history. Startup opens the database in the platform user-data directory, creates the application directory with private Unix permissions, enables foreign keys and WAL, applies a five-second busy timeout, records migrations in an immediate transaction, and rejects newer schemas. Domain tables and the backup contract remain later stages.
+
 ### MamboUI terminal interface
 
-The TUI will pin MamboUI revision `819b03fe77a39ee1bccefde4de9b9676eaa03134` until its `0.2.0` contract is released. It imports Ratatui through `mambo_ui::ratatui` and composes MamboUI's shell, panels, selection tables, status lines, help, empty states, and responsive layouts. Finance-specific screens, forms, charts, conflict evidence, and state transitions stay in MamboFinance.
+The TUI pins MamboUI revision `357f6c55bb5e0b8a843ae12437cfe39646abbaab` at crate version `0.2.0`. It imports Ratatui through `mambo_ui::ratatui` and composes MamboUI's shell, panels, status lines, help, empty states, and native Ratatui tabs. Finance-specific screens, forms, charts, conflict evidence, and state transitions stay in MamboFinance.
 
 The five primary screens are Overview, Transactions, Budgets, Insights, and Imports. Infrequent account, category, data-safety, MCP-status, appearance, and help tasks live under Manage rather than crowding the daily navigation. Rendering and input handling call application commands and do not contain validation or database policy.
 
@@ -67,6 +69,8 @@ Every domain query or mutation available in the TUI has a typed MCP tool. Naviga
 The MCP server exposes bounded finance operations rather than unrestricted SQL, shell, or filesystem access. Read tools return only the data required for the task. Write tools preserve authorization and exact-target checks, require confirmation for consequential actions, and use preview, idempotency, or atomic mutation where required.
 
 An optional `mbfinance` CLI may wrap the same application operations for scripts and debugging. It is not required for AI connectivity and cannot weaken MCP or core validation.
+
+The implemented MCP foundation runs as `mambofinance mcp` at the fixed loopback endpoint `http://127.0.0.1:3210/mcp`. It uses the official Rust MCP SDK and exposes only `get_capabilities`, with a structured output schema and `readOnlyHint: true`. Authentication, scopes, configurable connection settings, payload policy, and every finance-domain tool remain unavailable; no domain tool may be added before those controls and its shared use case are ready.
 
 ## Trust boundaries
 

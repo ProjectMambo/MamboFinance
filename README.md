@@ -1,18 +1,19 @@
 # MamboFinance
 
 <p align="left">
-  <img src="https://img.shields.io/badge/Rust-planned-000000?style=flat-square&logo=rust&logoColor=white" alt="Rust planned" />
-  <img src="https://img.shields.io/badge/SQLite-planned-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite planned" />
-  <img src="https://img.shields.io/badge/MamboUI-planned-7a5fff?style=flat-square" alt="MamboUI planned" />
+  <img src="https://img.shields.io/badge/Rust-1.95.0-000000?style=flat-square&logo=rust&logoColor=white" alt="Rust 1.95.0" />
+  <img src="https://img.shields.io/badge/SQLite-Foundation-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite foundation implemented" />
+  <img src="https://img.shields.io/badge/MamboUI-0.2.0-7a5fff?style=flat-square" alt="MamboUI 0.2.0" />
 </p>
 <p align="left">
-  <img src="https://img.shields.io/badge/Status-Design_reset-yellow?style=flat-square" alt="Project status: design reset" />
+  <a href="https://github.com/ProjectMambo/MamboFinance/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ProjectMambo/MamboFinance/ci.yml?style=flat-square&label=CI" alt="CI status" /></a>
+  <img src="https://img.shields.io/badge/Status-Experimental-yellow?style=flat-square" alt="Project status: experimental" />
   <img src="https://img.shields.io/github/last-commit/ProjectMambo/MamboFinance?style=flat-square&color=7a5fff" alt="Last commit" />
   <img src="https://img.shields.io/github/repo-size/ProjectMambo/MamboFinance?style=flat-square&color=yellow" alt="Repository size" />
   <img src="https://img.shields.io/badge/License-AGPLv3_%2B_Commercial-orange?style=flat-square" alt="License: AGPLv3 and commercial" />
 </p>
 
-MamboFinance is a local-first personal finance application design for transactions, budgets, overviews, statistics, and reviewable AI-assisted statement imports.
+MamboFinance is an experimental local-first personal finance application for transactions, budgets, overviews, statistics, and reviewable AI-assisted statement imports.
 
 ## Motivation
 
@@ -20,9 +21,9 @@ People should be able to understand and control their financial ledger without m
 
 ## Status
 
-MamboFinance is at a clean design baseline. The obsolete Rust library and in-memory TUI prototype have been intentionally removed; there is currently no executable application, supported database, package, or migration path. Git history retains the old implementation for reference, but the replacement will not preserve its public API or schema.
+MamboFinance now has its first executable foundation: one Rust package, a MamboUI terminal shell, a local SQLite migration path, and a loopback Streamable HTTP MCP server exposing the read-only `get_capabilities` tool. The schema currently stores migration history only; accounts, categories, transactions, budgets, statistics, imports, backup, and recovery are not implemented.
 
-The first implementation will be one Rust package with a shared application core, a MamboUI terminal interface, and an MCP server exposing a complete typed AI tool interface. An optional `mbfinance` CLI may wrap the same operations for scripts and debugging. Version 1 will not embed or train a model.
+The obsolete library and in-memory prototype remain removed, and the replacement does not preserve their API or schema. The current `0.1.0` manifest is experimental and has no released compatibility promise. Version 1 will not embed or train a model.
 
 ## User stories
 
@@ -36,21 +37,36 @@ The first implementation will be one Rust package with a shared application core
 
 The first useful release covers accounts, categories, signed minor-unit transactions, linked transfers, category budgets, derived overview/statistics queries, MCP tools for every domain action, and staged imports with provenance and conflict review. Tags, groups, recurring rules, exchange-rate history, split transactions, cloud sync, and an embedded model are deferred until a demonstrated need justifies them.
 
-## Planned dependencies
+## Dependencies
 
-No runtime or build dependency is active during the design reset. The implementation is expected to adopt only these foundations:
-
-| Dependency | Classification | Purpose | Planned source | Scope | Update path |
+| Dependency | Classification | Purpose | Provider, version pin, or source | Scope | Update path |
 |---|---|---|---|---|---|
-| Rust toolchain | Tool | Build the application and its interfaces | Minimum version to be fixed in the first manifest | Build/test | Change the manifest only after the full gate passes on the new minimum |
-| SQLite | Embedded database | Store the local ledger, import staging state, and migrations | Rust package and version to be selected with the first storage slice | Runtime | Update schema and dependency through a tested migration |
-| MamboUI | Sibling package | Provide shared Ratatui presentation primitives | Exact Git revision `819b03fe77a39ee1bccefde4de9b9676eaa03134` until `0.2.0` is released | TUI runtime | Review a newer commit, update the exact revision, and run render plus interaction checks |
+| Rust toolchain | Tool | Build and test the application | `1.95.0` from `Cargo.toml` and CI | Build/test | Change the manifest and workflow together after the full gate passes |
+| MamboUI | Sibling package | Shared Ratatui presentation primitives and compatible Ratatui types | Exact Git revision `357f6c55bb5e0b8a843ae12437cfe39646abbaab`, crate `0.2.0` | Runtime | Review the provider diff, update the exact revision, and run render plus interaction checks |
+| rusqlite | Package and embedded database | SQLite connections, pragmas, and migrations | `0.43`, bundled SQLite, locked in `Cargo.lock` | Runtime | Update through a tested migration and storage gate |
+| RMCP | Package | Typed MCP tools and Streamable HTTP service | `3.11`, locked in `Cargo.lock` | Runtime | Review protocol and schema changes, then repeat the end-to-end MCP smoke test |
+| Axum and Tokio | Packages | Loopback HTTP serving and asynchronous runtime | `axum 0.8`, `tokio 1`, locked in `Cargo.lock` | Runtime | Update the lockfile and repeat server lifecycle checks |
+| Crossterm | Package | Terminal setup, restoration, and keyboard input | `0.28`, locked in `Cargo.lock` | Runtime | Update with MamboUI-compatible render and terminal checks |
+| Serde and Schemars | Packages | Structured tool results and JSON Schema | Major version `1`, locked in `Cargo.lock` | Runtime | Review generated MCP schemas before updating |
+| tempfile | Development package | Isolated real-SQLite tests | Major version `3`, locked in `Cargo.lock` | Test | Update with the complete test gate |
 
-MamboUI re-exports its matching Ratatui version; MamboFinance will import Ratatui types through that re-export instead of adding a second Ratatui dependency. No model SDK is planned.
+MamboUI re-exports its matching Ratatui version, so MamboFinance does not add a second Ratatui dependency. No model SDK is planned.
 
 ## Getting started
 
-There is currently nothing to install or run. Start with the design documents below; executable setup instructions will be added only with the first working vertical slice.
+Install Rust 1.95.0, clone the repository, and run the experimental terminal shell:
+
+```bash
+cargo run --locked
+```
+
+Start the foundation MCP server separately:
+
+```bash
+cargo run --locked -- mcp
+```
+
+It listens only at `http://127.0.0.1:3210/mcp` and currently exposes only the read-only `get_capabilities` tool. No ledger action is available yet.
 
 ## Documentation
 
@@ -66,19 +82,24 @@ There is currently nothing to install or run. Start with the design documents be
 
 ```text
 README.md              project entry point
-docs/                  synchronized design documentation
+Cargo.toml             Rust package and direct dependency contract
+Cargo.lock             exact application dependency graph
+src/                   shared application, SQLite, TUI, and MCP code
+docs/                  synchronized product and development documentation
+.github/workflows/     locked-toolchain validation
 LICENSE                 repository licence summary
 LICENSE-AGPL            AGPLv3 terms
 LICENSE-COMMERCIAL.pdf  draft commercial terms
 ```
 
-Implementation directories, manifests, lockfiles, and CI return only when a working slice needs them; the reset does not keep placeholder code.
+`target/` and local SQLite files are ignored build or runtime output. Production data uses the platform user-data directory rather than the repository.
 
 ## Validation
 
-The current gate is documentation-only:
-
 ```bash
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked --all-targets
 git diff --check
 git status --short
 ```
@@ -87,7 +108,7 @@ From the canonical notes vault, maintainers also run `node Scripts/sync_docs.js 
 
 ## Development
 
-Build one vertical path at a time through the shared application core. The MamboUI interface, MCP server, and any optional CLI must call the same operations and validation; presentation and transport code must not own finance rules, and an AI proposal must never write directly to the ledger.
+Build one vertical path at a time through the shared application core. The MamboUI interface, MCP server, and any optional CLI must call the same operations and validation; presentation and transport code must not own finance rules, and an AI proposal must never write directly to the ledger. The current shared capability query demonstrates that adapter boundary without introducing a finance-domain action prematurely.
 
 Author documentation in `notes/Docs/Projects/MamboFinance/`, synchronize it, and update the documented gate when executable code returns. External pull requests are not currently requested; focused bug and design reports are welcome as repository issues.
 
