@@ -54,13 +54,13 @@ Reference data that is still in use cannot silently erase transactions. Multi-ro
 
 Source provenance is retained with imported entries, but raw statements are not copied into the database by default. Logs, JSON output, errors, and test fixtures must not expose full reports, account numbers, or unrelated ledger history.
 
-The implemented schema version 1 is deliberately smaller than the target model: it records only ordered migration history. Startup opens the database in the platform user-data directory, creates the application directory with private Unix permissions, enables foreign keys and WAL, applies a five-second busy timeout, records migrations in an immediate transaction, and rejects newer schemas. Domain tables and the backup contract remain later stages.
+The implemented schema version 2 records ordered migration history and active or archived accounts. An account has an internal integer ID, normalized unique name key, original display name, constrained kind, three-letter uppercase currency, revision, UTC timestamps, and optional archive timestamp. Startup opens the database in the platform user-data directory, creates the application directory with private Unix permissions, enables foreign keys and WAL, applies a five-second busy timeout, applies each missing migration in its own immediate transaction, and rejects newer schemas. Categories, ledger tables, failed-upgrade recovery, and the backup contract remain later stages.
 
 ### MamboUI terminal interface
 
 The TUI pins MamboUI revision `357f6c55bb5e0b8a843ae12437cfe39646abbaab` at crate version `0.2.0`. It imports Ratatui through `mambo_ui::ratatui` and composes MamboUI's shell, panels, status lines, help, empty states, and native Ratatui tabs. Finance-specific screens, forms, charts, conflict evidence, and state transitions stay in MamboFinance.
 
-The five primary screens are Overview, Transactions, Budgets, Insights, and Imports. Infrequent account, category, data-safety, MCP-status, appearance, and help tasks live under Manage rather than crowding the daily navigation. Rendering and input handling call application commands and do not contain validation or database policy.
+The five primary screens are Overview, Transactions, Budgets, Insights, and Imports. Infrequent account, category, data-safety, MCP-status, appearance, and help tasks live under Manage rather than crowding the daily navigation. The implemented Manage account screen lists active accounts and provides a keyboard-only create form whose rejected input remains editable. Rendering and input handling call application commands and do not contain validation or database policy.
 
 ### MCP tools and optional CLI
 
@@ -70,7 +70,7 @@ The MCP server exposes bounded finance operations rather than unrestricted SQL, 
 
 An optional `mbfinance` CLI may wrap the same application operations for scripts and debugging. It is not required for AI connectivity and cannot weaken MCP or core validation.
 
-The implemented MCP foundation runs as `mambofinance mcp` at the fixed loopback endpoint `http://127.0.0.1:3210/mcp`. It uses the official Rust MCP SDK and exposes only `get_capabilities`, with a structured output schema and `readOnlyHint: true`. Authentication, scopes, configurable connection settings, payload policy, and every finance-domain tool remain unavailable; no domain tool may be added before those controls and its shared use case are ready.
+The implemented MCP foundation runs as `mambofinance mcp` at the fixed loopback endpoint `http://127.0.0.1:3210/mcp`. It requires `MAMBOFINANCE_MCP_TOKEN` at startup and rejects requests whose bearer header does not exactly match it. The token must contain at least 32 ASCII letters, digits, hyphens, or underscores. The official Rust MCP SDK exposes structured `get_capabilities`, `list_accounts`, and `create_account` tools with accurate read-only, destructive, and idempotent annotations. Validation and conflict failures use stable JSON error content. Revocation UI, multiple scoped credentials, configurable connection settings, request limits, and the remaining finance tools are unavailable.
 
 ## Trust boundaries
 

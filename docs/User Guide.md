@@ -9,7 +9,7 @@ order: 20
 # User guide
 
 > [!WARNING]
-> The executable foundation is available, but the finance workflows below remain planned. The current TUI only demonstrates the five-view shell and storage status; the current MCP server only exposes `get_capabilities`.
+> Account creation and listing are available, but the rest of the finance workflows below remain planned. There are no transactions, balances, budgets, imports, backup, or recovery yet, and the data contract is still experimental.
 
 ## Foundation preview
 
@@ -19,15 +19,26 @@ Run the TUI from a clone with Rust 1.95.0:
 cargo run --locked
 ```
 
-Use `1` through `5` or the left and right arrow keys to inspect the planned views, and `q` to quit. The shell intentionally contains no account or ledger actions yet.
+Use `1` through `5` or the left and right arrow keys to inspect the planned views. Press `m` to open Manage, `a` to add an account, `Tab` or `Shift+Tab` to move between fields, the arrow keys to choose its kind, and `Enter` to create it. `Esc` cancels the form or returns from Manage, and `q` quits outside a form. Invalid input remains in the form for correction.
 
 Start the local MCP endpoint with:
 
 ```bash
+export MAMBOFINANCE_MCP_TOKEN="replace-with-at-least-32-private-characters"
 cargo run --locked -- mcp
 ```
 
-It binds only to `127.0.0.1:3210`, serves MCP at `/mcp`, and reports implemented and unavailable capabilities. Do not treat it as a complete finance integration or expose it to another network.
+It binds only to `127.0.0.1:3210`, serves MCP at `/mcp`, and requires clients to send `Authorization: Bearer <token>`. It refuses to start when the token is missing, shorter than 32 characters, or contains characters outside ASCII letters, digits, hyphens, and underscores. Keep the token out of URLs and logs, rotate it by restarting with a different value, and do not expose this experimental server to another network.
+
+The current tools are:
+
+| Tool | Behavior |
+|---|---|
+| `get_capabilities` | Report the contract, schema version, available tools, and incomplete domains |
+| `list_accounts` | Return active accounts in normalized-name order |
+| `create_account` | Validate and store one bank, card, cash, wallet, or marketplace account |
+
+Account names are trimmed, repeated whitespace is collapsed, control characters are rejected, and case-insensitive normalized duplicates are rejected. Currency uses exactly three ASCII letters and is stored uppercase. MCP account IDs are decimal strings.
 
 ## Human interface
 

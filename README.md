@@ -21,7 +21,7 @@ People should be able to understand and control their financial ledger without m
 
 ## Status
 
-MamboFinance now has its first executable foundation: one Rust package, a MamboUI terminal shell, a local SQLite migration path, and a loopback Streamable HTTP MCP server exposing the read-only `get_capabilities` tool. The schema currently stores migration history only; accounts, categories, transactions, budgets, statistics, imports, backup, and recovery are not implemented.
+MamboFinance now has its first account slice: one Rust package, a MamboUI terminal shell with account creation and listing under Manage, SQLite schema version 2 with durable accounts, and an authenticated loopback Streamable HTTP MCP server exposing `get_capabilities`, `list_accounts`, and `create_account`. Account editing and archiving, categories, transactions, budgets, statistics, imports, backup, and recovery are not implemented.
 
 The obsolete library and in-memory prototype remain removed, and the replacement does not preserve their API or schema. The current `0.1.0` manifest is experimental and has no released compatibility promise. Version 1 will not embed or train a model.
 
@@ -63,10 +63,11 @@ cargo run --locked
 Start the foundation MCP server separately:
 
 ```bash
+export MAMBOFINANCE_MCP_TOKEN="replace-with-at-least-32-private-characters"
 cargo run --locked -- mcp
 ```
 
-It listens only at `http://127.0.0.1:3210/mcp` and currently exposes only the read-only `get_capabilities` tool. No ledger action is available yet.
+It listens only at `http://127.0.0.1:3210/mcp`. Clients must send that token as `Authorization: Bearer <token>`; keep it out of URLs, logs, and shared shell files. The implemented tools are `get_capabilities`, `list_accounts`, and `create_account`. Account names are trimmed, internal whitespace is collapsed, normalized names must be unique, and currencies are three ASCII letters normalized to uppercase.
 
 ## Documentation
 
@@ -108,7 +109,7 @@ From the canonical notes vault, maintainers also run `node Scripts/sync_docs.js 
 
 ## Development
 
-Build one vertical path at a time through the shared application core. The MamboUI interface, MCP server, and any optional CLI must call the same operations and validation; presentation and transport code must not own finance rules, and an AI proposal must never write directly to the ledger. The current shared capability query demonstrates that adapter boundary without introducing a finance-domain action prematurely.
+Build one vertical path at a time through the shared application core. The MamboUI interface, MCP server, and any optional CLI must call the same operations and validation; presentation and transport code must not own finance rules, and an AI proposal must never write directly to the ledger. Account creation and listing now demonstrate this adapter parity; the remaining account lifecycle must extend the same operations rather than adding adapter-specific rules.
 
 Author documentation in `notes/Docs/Projects/MamboFinance/`, synchronize it, and update the documented gate when executable code returns. External pull requests are not currently requested; focused bug and design reports are welcome as repository issues.
 

@@ -14,7 +14,7 @@ MamboFinance is being rebuilt as a local-first ledger for transactions, transfer
 
 ## Current status
 
-The first executable foundation is available: a MamboUI terminal shell, SQLite migration history, and a loopback MCP server with one read-only capability tool. Accounts, transactions, budgets, statistics, imports, backup, and recovery remain planned; there is no stable data-compatibility promise yet.
+The first account slice is available: the MamboUI Manage screen and bearer-authenticated MCP tools create and list durable SQLite accounts through the same validation. Account editing and archiving, transactions, budgets, statistics, imports, backup, and recovery remain planned; there is no stable data-compatibility promise yet.
 
 ## Selected direction
 
