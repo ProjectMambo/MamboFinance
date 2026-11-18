@@ -1,6 +1,6 @@
 ---
 title: MamboFinance
-description: A local-first finance design with MamboUI, complete AI-tool parity, and reviewable external-AI imports.
+description: An experimental local-first finance app with MamboUI, typed AI tools, and reviewable external-AI imports.
 order: 40
 ---
 
@@ -14,7 +14,7 @@ MamboFinance is being rebuilt as a local-first ledger for transactions, transfer
 
 ## Current status
 
-The obsolete library and in-memory terminal prototype have been removed. The repository is now a documentation and licence baseline with no executable application or supported database. Git history remains available, but the replacement intentionally starts with a new schema and interface contract.
+The first executable foundation is available: a MamboUI terminal shell, SQLite migration history, and a loopback MCP server with one read-only capability tool. Accounts, transactions, budgets, statistics, imports, backup, and recovery remain planned; there is no stable data-compatibility promise yet.
 
 ## Selected direction
 
