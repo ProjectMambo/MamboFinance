@@ -14,7 +14,7 @@ The plan is authoritative for intended delivery order, but it is not a promise o
 
 ## Current state
 
-MamboFinance now has an experimental account foundation. One Rust package starts either a keyboard-only MamboUI shell or a bearer-authenticated loopback Streamable HTTP MCP server. Shared application operations create and list accounts through both adapters. SQLite schema version 2 records ordered migrations and accounts in the platform user-data directory with foreign keys, WAL, a busy timeout, transactional migration and account writes, normalized-name uniqueness, and newer-schema refusal. CI, real-SQLite tests, TUI interaction and render checks, bearer validation, typed MCP schema checks, and local HTTP protocol smoke tests cover the implemented slices.
+MamboFinance now has an experimental account foundation. One Rust package starts either a keyboard-only MamboUI shell or a bearer-authenticated loopback Streamable HTTP MCP server. Shared application operations create and list accounts through both adapters. SQLite schema version 2 records ordered migrations and accounts in the platform user-data directory with foreign keys, WAL, a busy timeout, transactional migration and account writes, normalized-name uniqueness, and newer-schema refusal. CI and 24 automated tests currently cover real-SQLite bootstrap, upgrade, persistence, ordering and concurrent conflicts; TUI interaction, rejected-input preservation and reduced rendering; bearer rejection plus authenticated MCP discovery, create and list over the real in-process HTTP router; and spawned CLI failure paths in isolated user-data directories.
 
 The account lifecycle remains incomplete: get, update, archive, and restore are still planned, as are categories, transactions, transfers, budgets, statistics, imports, scoped credential management, backup, restore, and stable user-data compatibility. Stage 1 is not complete until a supported external host proves connection and confirmation behavior and the remaining dependency/licence gate is fixed. Stage 2 is only partially complete: failed-migration recovery, multi-process busy behavior, backup, and the rest of the domain schema remain open. Stage 3 has only the account create/list path, not its exit gate.
 
@@ -38,6 +38,20 @@ Every meaningful domain action is complete only when it has:
 6. focused tests, fixtures, and current documentation.
 
 Navigation, focus, theme, and help remain presentation-only and do not need tool equivalents.
+
+## Test strategy for every stage
+
+Tests ship in the same phase as each behavior; a later hardening stage does not substitute for regression coverage when a rule is introduced. Use the lowest layer that proves the contract, then add one boundary test for every affected adapter.
+
+- Pure validation and state transitions receive focused unit tests, including boundary and rejected-input cases.
+- Storage behavior uses temporary real SQLite databases, restart checks, migration checks, and concurrent connections rather than an in-memory substitute or repository mock.
+- Every mutation proves its successful persisted result, its important rejection without partial state, and its conflict or stale-write behavior where applicable.
+- MCP changes exercise the in-process HTTP router with real JSON-RPC requests, authentication, discovery schemas, annotations, structured results, and stable error content.
+- CLI startup and failure behavior uses spawned-process tests with isolated platform data directories and no inherited credential.
+- TUI behavior separates key/state tests from render tests at 80 by 24 and a reduced terminal; invalid form data must remain editable.
+- Manual smoke tests remain for terminal restoration and external-host behavior that the automated harness cannot yet reproduce, and their evidence must be noted in the current-state documentation until replaced.
+
+The phase gate is formatting, Clippy with warnings denied, all locked targets and integration tests, strict documentation validation, generated-Wiki validation when docs change, and a clean diff review. A discovered defect receives a regression test at the layer where it escaped before the fix is considered complete.
 
 ## Version 1 boundaries
 

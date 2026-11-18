@@ -529,4 +529,39 @@ mod tests {
             state.accounts
         );
     }
+
+    #[test]
+    fn rejected_account_input_remains_editable() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let application =
+            Application::open(directory.path().join("finance.db")).expect("application");
+        let mut state = UiState {
+            view: View::Accounts,
+            account_form: Some(AccountForm {
+                name: "Wallet".to_owned(),
+                kind_index: 3,
+                currency: "XX".to_owned(),
+                field: AccountField::Currency,
+            }),
+            ..UiState::default()
+        };
+
+        handle_key(&mut state, KeyCode::Enter, &application).expect("key");
+
+        let form = state.account_form.as_ref().expect("preserved form");
+        assert_eq!(form.name, "Wallet");
+        assert_eq!(form.currency, "XX");
+        assert!(
+            state.error.as_deref().is_some_and(|error| {
+                error.contains("currency") && error.contains("three-letter")
+            })
+        );
+        assert!(state.accounts.is_empty());
+
+        let backend = TestBackend::new(20, 4);
+        let mut terminal = Terminal::new(backend).expect("terminal");
+        terminal
+            .draw(|frame| render(frame, &state, &capabilities()))
+            .expect("reduced form draw");
+    }
 }

@@ -20,6 +20,7 @@ tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal
 
 [dev-dependencies]
 tempfile = "3"
+tower = "0.5"
 
 [lints.rust]
 unsafe_code = "forbid"

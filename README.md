@@ -48,7 +48,7 @@ The first useful release covers accounts, categories, signed minor-unit transact
 | Axum and Tokio | Packages | Loopback HTTP serving and asynchronous runtime | `axum 0.8`, `tokio 1`, locked in `Cargo.lock` | Runtime | Update the lockfile and repeat server lifecycle checks |
 | Crossterm | Package | Terminal setup, restoration, and keyboard input | `0.28`, locked in `Cargo.lock` | Runtime | Update with MamboUI-compatible render and terminal checks |
 | Serde and Schemars | Packages | Structured tool results and JSON Schema | Major version `1`, locked in `Cargo.lock` | Runtime | Review generated MCP schemas before updating |
-| tempfile | Development package | Isolated real-SQLite tests | Major version `3`, locked in `Cargo.lock` | Test | Update with the complete test gate |
+| tempfile and Tower | Development packages | Isolated real-SQLite tests and in-process HTTP router tests | `tempfile 3` and `tower 0.5`, locked in `Cargo.lock` | Test | Update with the complete test gate |
 
 MamboUI re-exports its matching Ratatui version, so MamboFinance does not add a second Ratatui dependency. No model SDK is planned.
 
@@ -104,6 +104,8 @@ cargo test --locked --all-targets
 git diff --check
 git status --short
 ```
+
+The current test suite covers schema bootstrap and upgrade, newer-schema refusal, account validation and durable ordering, concurrent normalized-name conflicts, TUI form entry and rejected-input preservation, MCP bearer rejection plus authenticated discovery/create/list calls, and CLI startup failures in isolated user-data directories. Future domain slices must add their rules and persistence tests together with at least one affected adapter-boundary test.
 
 From the canonical notes vault, maintainers also run `node Scripts/sync_docs.js --sync MamboFinance MamboWiki` and review every generated addition, modification, and deletion.
 
