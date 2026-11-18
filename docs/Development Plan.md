@@ -12,6 +12,12 @@ This plan delivers MamboFinance as a local-first Rust application with a MamboUI
 
 The plan is authoritative for intended delivery order, but it is not a promise of calendar dates. Update it when implementation evidence changes a domain rule, public interface, stage boundary, or release gate.
 
+## Current state
+
+MamboFinance is currently a documentation and licence baseline. The obsolete library and in-memory terminal prototype have been removed; there is no executable application, supported database, migration path, MCP server, or user-data compatibility promise in the current release. Git history preserves the earlier prototype, but the replacement intentionally starts from the contracts and fixtures in Stage 0 rather than treating prototype behavior as supported.
+
+The evidence reviewed for this plan is the reset repository, current README, architecture, user and AI-import guides, MamboUI contract, and the prior prototype's safety lessons. Every stage below remains planned until its exit gate is met and the current-state section is revised with the delivered evidence.
+
 ## Target shape
 
 ~~~text
